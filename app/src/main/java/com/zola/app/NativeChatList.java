@@ -654,7 +654,7 @@ public final class NativeChatList extends FrameLayout {
             }
             FrameLayout frameLayout = new FrameLayout(context);
             this.tabRow = frameLayout;
-            addView(frameLayout, new LinearLayout.LayoutParams(-1, NativeChatList.this.dp(31.0f)));
+            addView(frameLayout, new LinearLayout.LayoutParams(-1, NativeChatList.this.dp(32.0f)));
             LinearLayout linearLayout5 = new LinearLayout(context);
             linearLayout5.setGravity(16);
             linearLayout5.setPadding(NativeChatList.this.dp(8.0f), 0, NativeChatList.this.dp(8.0f), 0);
@@ -702,7 +702,8 @@ public final class NativeChatList extends FrameLayout {
             view2.setVisibility(4);
             View view3 = new View(context);
             this.line = view3;
-            addView(view3, new LinearLayout.LayoutParams(-1, Math.max(1, NativeChatList.this.dp(0.5f))));
+            view3.setVisibility(8);
+            addView(view3, new LinearLayout.LayoutParams(-1, 0));
             setCats("Phân loại");
             setConn("wait");
             applyColors();
@@ -739,7 +740,7 @@ public final class NativeChatList extends FrameLayout {
             for (TextView textView : this.icons) {
                 textView.setTextColor(NativeChatList.this.fg);
             }
-            this.line.setBackgroundColor(Color.luminance(NativeChatList.this.bg) < 0.4f ? 587202559 : 520093696);
+            this.line.setBackgroundColor(0);
             while (i < this.tabs.getChildCount()) {
                 ((TextView) this.tabs.getChildAt(i)).setTextColor(i == this.sel ? -16750337 : NativeChatList.this.fg2);
                 i++;

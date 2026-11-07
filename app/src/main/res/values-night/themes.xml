@@ -5,7 +5,7 @@
         <item name="colorAccent">@color/zalo_blue</item>
         <item name="android:windowBackground">#121212</item>
         <item name="android:statusBarColor">#121212</item>
-        <item name="android:navigationBarColor">#121212</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
     <style name="SettingsTheme" parent="@android:style/Theme.Material.Settings">

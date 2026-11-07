@@ -90,7 +90,7 @@ class MainActivity : AppCompatActivity() {
             val isSavedLight = Color.luminance(savedTop) > 0.5f
             if (night == isSavedLight) {
                 barTop = if (night) Color.parseColor("#121212") else Color.WHITE
-                barBottom = if (night) Color.parseColor("#121212") else Color.WHITE
+                barBottom = savedBottom
             } else {
                 barTop = savedTop
                 barBottom = savedBottom
@@ -134,14 +134,19 @@ class MainActivity : AppCompatActivity() {
     private fun applyInsets() {
         if (Build.VERSION.SDK_INT < 30) return
         root.setOnApplyWindowInsetsListener { _, windowInsets ->
-            val insets = windowInsets.getInsets(
-                WindowInsets.Type.systemBars() or WindowInsets.Type.ime() or WindowInsets.Type.displayCutout()
-            )
-            webContainer.setPadding(insets.left, insets.top, insets.right, insets.bottom)
-            popupContainer.setPadding(insets.left, insets.top, insets.right, insets.bottom)
+            val ime = windowInsets.getInsets(WindowInsets.Type.ime())
+            val systemBars = windowInsets.getInsets(WindowInsets.Type.systemBars())
+            val cutout = windowInsets.getInsets(WindowInsets.Type.displayCutout())
+            val topInset = maxOf(systemBars.top, cutout.top)
+            val leftInset = maxOf(systemBars.left, cutout.left)
+            val rightInset = maxOf(systemBars.right, cutout.right)
+            val bottomInset = ime.bottom
+
+            webContainer.setPadding(leftInset, topInset, rightInset, bottomInset)
+            popupContainer.setPadding(leftInset, topInset, rightInset, maxOf(systemBars.bottom, ime.bottom))
             val lp = statusScrim.layoutParams
-            if (lp.height != insets.top) {
-                lp.height = insets.top
+            if (lp.height != topInset) {
+                lp.height = topInset
                 statusScrim.layoutParams = lp
             }
             windowInsets
@@ -205,9 +210,7 @@ class MainActivity : AppCompatActivity() {
         val isTopLight = Color.luminance(barTop) > 0.5f
         if (night == isTopLight) {
             barTop = if (night) Color.parseColor("#121212") else Color.WHITE
-            barBottom = if (night) Color.parseColor("#121212") else Color.WHITE
             Prefs.put(this, "bar_top", barTop)
-            Prefs.put(this, "bar_bottom", barBottom)
         }
 
         applyBarColors()
@@ -419,7 +422,7 @@ class MainActivity : AppCompatActivity() {
             val parsedTop = if (top != null) Color.parseColor(top) else defaultColor
             val parsedBottom = if (bottom != null) Color.parseColor(bottom) else defaultColor
             val topColor = if (night && Color.luminance(parsedTop) > 0.5f) Color.parseColor("#121212") else parsedTop
-            val bottomColor = if (night && Color.luminance(parsedBottom) > 0.5f) Color.parseColor("#121212") else parsedBottom
+            val bottomColor = parsedBottom
             setSystemBarColors(topColor, bottomColor)
         } catch (_: Exception) {}
     }
