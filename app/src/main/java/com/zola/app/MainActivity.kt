@@ -99,6 +99,8 @@ class MainActivity : AppCompatActivity() {
             maybeAskBattery()
         }
 
+        Updater.check(this, false)
+
         webView.loadUrl("https://chat.zalo.me/")
     }
 

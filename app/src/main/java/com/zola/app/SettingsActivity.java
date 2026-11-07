@@ -296,6 +296,7 @@ public class SettingsActivity extends Activity {
     }
 
     private void buildOther() {
+        button("Kiểm tra cập nhật", () -> Updater.check(this, true));
         button("Xóa ảnh/video đã lưu", () -> {
             new AlertDialog.Builder(this)
                 .setMessage("Xóa ảnh và video tin nhắn đã lưu trong máy? Lần sau xem lại sẽ phải tải lại.")

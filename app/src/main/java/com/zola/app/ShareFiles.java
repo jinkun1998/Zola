@@ -108,7 +108,11 @@ public class ShareFiles extends ContentProvider {
 
     @Override // android.content.ContentProvider
     public String getType(Uri uri) {
-        String fileExtensionFromUrl = MimeTypeMap.getFileExtensionFromUrl(String.valueOf(uri.getLastPathSegment()));
+        String last = uri.getLastPathSegment();
+        if (last != null && last.endsWith(".apk")) {
+            return "application/vnd.android.package-archive";
+        }
+        String fileExtensionFromUrl = MimeTypeMap.getFileExtensionFromUrl(String.valueOf(last));
         String mimeTypeFromExtension = fileExtensionFromUrl == null ? null : MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtensionFromUrl.toLowerCase());
         return mimeTypeFromExtension != null ? mimeTypeFromExtension : "application/octet-stream";
     }
