@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Zola" parent="Theme.AppCompat.Light.NoActionBar">
+    <style name="Theme.Zola" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="colorPrimary">@color/zalo_blue</item>
         <item name="colorAccent">@color/zalo_blue</item>
         <item name="android:windowBackground">@android:color/white</item>

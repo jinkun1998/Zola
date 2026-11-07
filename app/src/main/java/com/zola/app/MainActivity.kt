@@ -16,6 +16,8 @@ import android.widget.FrameLayout
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import android.content.res.Configuration
+import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import java.util.UUID
@@ -81,9 +83,18 @@ class MainActivity : AppCompatActivity() {
         setupWindow()
         applyInsets()
 
+        val night = isNightMode()
         if (!barsLoaded) {
-            barTop = Prefs.barTop(this)
-            barBottom = Prefs.barBottom(this)
+            val savedTop = Prefs.barTop(this)
+            val savedBottom = Prefs.barBottom(this)
+            val isSavedLight = Color.luminance(savedTop) > 0.5f
+            if (night == isSavedLight) {
+                barTop = if (night) Color.parseColor("#121212") else Color.WHITE
+                barBottom = if (night) Color.parseColor("#121212") else Color.WHITE
+            } else {
+                barTop = savedTop
+                barBottom = savedBottom
+            }
             barsLoaded = true
         }
         applyBarColors()
@@ -92,6 +103,7 @@ class MainActivity : AppCompatActivity() {
         loadScript()
         setupNativeUI()
         setupWebView()
+        applyNightMode(night)
         setupBackHandler()
         handleIntent(intent)
 
@@ -112,12 +124,10 @@ class MainActivity : AppCompatActivity() {
                 w.statusBarColor = 0
                 w.navigationBarColor = 0
             }
-            insetsController()?.setSystemBarsAppearance(24, 24)
         } else {
             @Suppress("DEPRECATION")
             w.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-                    View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
         }
     }
 
@@ -173,10 +183,53 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun isNightMode(): Boolean {
+        return (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+    }
+
+    private fun applyNightMode(night: Boolean) {
+        if (::webView.isInitialized) {
+            try {
+                if (Build.VERSION.SDK_INT >= 33 && WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
+                    WebSettingsCompat.setAlgorithmicDarkeningAllowed(webView.settings, night)
+                } else if (WebViewFeature.isFeatureSupported(WebViewFeature.FORCE_DARK)) {
+                    @Suppress("DEPRECATION")
+                    WebSettingsCompat.setForceDark(
+                        webView.settings,
+                        if (night) WebSettingsCompat.FORCE_DARK_ON else WebSettingsCompat.FORCE_DARK_OFF
+                    )
+                }
+            } catch (_: Exception) {}
+        }
+
+        val isTopLight = Color.luminance(barTop) > 0.5f
+        if (night == isTopLight) {
+            barTop = if (night) Color.parseColor("#121212") else Color.WHITE
+            barBottom = if (night) Color.parseColor("#121212") else Color.WHITE
+            Prefs.put(this, "bar_top", barTop)
+            Prefs.put(this, "bar_bottom", barBottom)
+        }
+
+        applyBarColors()
+        WebViewHolder.evalMain("window.__zw && window.__zw.refreshBars && window.__zw.refreshBars()")
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val night = (newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        applyNightMode(night)
+    }
+
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
-            applyBarColors()
+            val night = isNightMode()
+            val isTopLight = Color.luminance(barTop) > 0.5f
+            if (night == isTopLight) {
+                applyNightMode(night)
+            } else {
+                applyBarColors()
+            }
         }
     }
 
@@ -361,8 +414,12 @@ class MainActivity : AppCompatActivity() {
 
     fun onSystemBars(top: String?, bottom: String?) {
         try {
-            val topColor = if (top != null) Color.parseColor(top) else barTop
-            val bottomColor = if (bottom != null) Color.parseColor(bottom) else barBottom
+            val night = isNightMode()
+            val defaultColor = if (night) Color.parseColor("#121212") else Color.WHITE
+            val parsedTop = if (top != null) Color.parseColor(top) else defaultColor
+            val parsedBottom = if (bottom != null) Color.parseColor(bottom) else defaultColor
+            val topColor = if (night && Color.luminance(parsedTop) > 0.5f) Color.parseColor("#121212") else parsedTop
+            val bottomColor = if (night && Color.luminance(parsedBottom) > 0.5f) Color.parseColor("#121212") else parsedBottom
             setSystemBarColors(topColor, bottomColor)
         } catch (_: Exception) {}
     }
