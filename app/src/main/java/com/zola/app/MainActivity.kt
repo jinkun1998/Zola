@@ -118,12 +118,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupWindow() {
         val w = window
+        if (Build.VERSION.SDK_INT >= 29) {
+            w.isNavigationBarContrastEnforced = false
+            w.isStatusBarContrastEnforced = false
+        }
         if (Build.VERSION.SDK_INT >= 30) {
             w.setDecorFitsSystemWindows(false)
-            if (Build.VERSION.SDK_INT < 35) {
-                w.statusBarColor = 0
-                w.navigationBarColor = 0
-            }
+            @Suppress("DEPRECATION")
+            w.statusBarColor = Color.TRANSPARENT
+            @Suppress("DEPRECATION")
+            w.navigationBarColor = Color.TRANSPARENT
         } else {
             @Suppress("DEPRECATION")
             w.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
@@ -156,6 +160,10 @@ class MainActivity : AppCompatActivity() {
     private fun applyBarColors() {
         statusScrim.setBackgroundColor(barTop)
         root.setBackgroundColor(barBottom)
+        @Suppress("DEPRECATION")
+        window.statusBarColor = Color.TRANSPARENT
+        @Suppress("DEPRECATION")
+        window.navigationBarColor = Color.TRANSPARENT
         val isLightTop = Color.luminance(barTop) > 0.5f
         val isLightBottom = Color.luminance(barBottom) > 0.5f
 

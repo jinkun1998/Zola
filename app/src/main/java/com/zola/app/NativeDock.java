@@ -120,7 +120,7 @@ public final class NativeDock extends FrameLayout {
         paint6.setTextSize(10.0f * f * fTextZoom);
         paint5.setColor(-1755077);
         paint2.setColor(0);
-        paint2.setShadowLayer((20.0f * f) / 2.0f, 0.0f, 6.0f * f, 1073741824);
+        // no shadow layer under dock
         paint3.setStyle(Paint.Style.STROKE);
         paint3.setStrokeWidth(f);
         paint3.setColor(536870911);
@@ -405,10 +405,7 @@ public final class NativeDock extends FrameLayout {
     @Override // android.view.ViewGroup, android.view.View
     protected void dispatchDraw(Canvas canvas) {
         float fHeight = this.box.height() / 2.0f;
-        canvas.save();
-        canvas.clipOutPath(this.boxPath);
-        canvas.drawRoundRect(this.box, fHeight, fHeight, this.shadow);
-        canvas.restore();
+        // removed black shadow under dock pill
         canvas.save();
         canvas.clipPath(this.boxPath);
         super.dispatchDraw(canvas);

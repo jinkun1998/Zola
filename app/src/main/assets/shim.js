@@ -740,7 +740,7 @@
         ' top: auto !important; width: var(--zd-dock-w, 228px) !important; height: 56px !important; padding: 0 2px !important;' +
         ' flex-direction: row !important; align-items: stretch !important; justify-content: space-around !important;' +
         ' border-radius: 28px !important; overflow: hidden !important; box-sizing: border-box !important;' +
-        ' z-index: 12 !important; box-shadow: 0 6px 20px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.22),' +
+        ' z-index: 12 !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.22),' +
         ' inset 0 0 0 1px rgba(255,255,255,.12); }',
       'html.zd-m #main-tab { transition: transform .42s cubic-bezier(.22,.61,.36,1) !important; }',
       'html.zd-m.zd-dockhide #main-tab { transform: translate3d(0, calc(100% + var(--zd-dock-bottom, 24px) + 12px), 0) !important; }',

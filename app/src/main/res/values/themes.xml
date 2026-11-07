@@ -4,8 +4,10 @@
         <item name="colorPrimary">@color/zalo_blue</item>
         <item name="colorAccent">@color/zalo_blue</item>
         <item name="android:windowBackground">@android:color/white</item>
-        <item name="android:statusBarColor">@android:color/white</item>
-        <item name="android:navigationBarColor">@android:color/white</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+        <item name="android:enforceStatusBarContrast">false</item>
         <item name="android:windowLightStatusBar">true</item>
     </style>
     <style name="SettingsTheme" parent="@android:style/Theme.Material.Light.DarkActionBar">
