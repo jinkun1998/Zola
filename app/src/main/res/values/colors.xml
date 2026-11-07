@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="zalo_blue">#0068FF</color>
+    <color name="ic_launcher_background">#0068FF</color>
     <color name="zalo_light_bg">#F4F5F7</color>
     <color name="zalo_text_primary">#081C36</color>
     <color name="zalo_text_secondary">#768494</color>

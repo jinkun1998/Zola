@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:icon="@drawable/ic_shortcut_settings"
+        android:enabled="true"
+        android:shortcutId="settings"
+        android:shortcutShortLabel="@string/shortcut_settings">
+        <intent
+            android:targetPackage="com.zola.app"
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.zola.app.SettingsActivity"/>
+    </shortcut>
+    <shortcut
+        android:icon="@drawable/ic_shortcut_reload"
+        android:enabled="true"
+        android:shortcutId="reload"
+        android:shortcutShortLabel="@string/shortcut_reload">
+        <intent
+            android:targetPackage="com.zola.app"
+            android:action="com.zola.app.RELOAD"
+            android:targetClass="com.zola.app.MainActivity"/>
+    </shortcut>
+</shortcuts>

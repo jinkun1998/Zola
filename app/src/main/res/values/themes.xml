@@ -2,7 +2,15 @@
 <resources>
     <style name="Theme.Zola" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="colorPrimary">@color/zalo_blue</item>
-        <item name="android:statusBarColor">@color/zalo_blue</item>
-        <item name="android:windowBackground">#FFFFFF</item>
+        <item name="colorAccent">@color/zalo_blue</item>
+        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:statusBarColor">@android:color/white</item>
+        <item name="android:navigationBarColor">@android:color/white</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+    <style name="SettingsTheme" parent="@android:style/Theme.Material.Light.DarkActionBar">
+        <item name="android:colorPrimary">@color/zalo_blue</item>
+        <item name="android:colorPrimaryDark">#0052cc</item>
+        <item name="android:colorAccent">@color/zalo_blue</item>
     </style>
 </resources>
