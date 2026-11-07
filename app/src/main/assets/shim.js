@@ -2436,6 +2436,7 @@
         if (!found.container && ex.ModuleContainer && typeof ex.ModuleContainer.resolve === 'function') found.container = ex.ModuleContainer;
         if (!found.tokens && ex.PreviewDataManager && ex.UnreadDataManager) found.tokens = ex;
         if (!found.convCtl && ex.ConversationController && ex.ConversationController.service) found.convCtl = ex.ConversationController;
+        if (!found.clc && ex.ConvListController) found.clc = ex.ConvListController;
         var d = ex.default;
         if (!found.storage && d && typeof d.getConversations === 'function' && typeof d.getFriends === 'function') found.storage = d;
         if (!found.i18n && d && typeof d.str === 'function' && typeof d.currentLanguage === 'function') found.i18n = d;
@@ -2456,7 +2457,7 @@
       var C = found.container, T = found.tokens;
       function res(t) { try { return C.resolve(t); } catch (e) { return null; } }
       Z = { st: found.storage, preview: res(T.PreviewDataManager), unread: res(T.UnreadDataManager),
-        pin: res(T.PinDataManager), mute: res(T.MuteDataManager), conv: found.convCtl ? res(found.convCtl) : null,
+        pin: res(T.PinDataManager), mute: res(T.MuteDataManager), conv: found.convCtl ? res(found.convCtl) : null, clc: found.clc ? res(found.clc) : null,
         info: T.ConvInfoDataManager ? res(T.ConvInfoDataManager) : null, // tên / ảnh cả người lạ (không trong danh bạ)
         fmt: found.fmt, i18n: found.i18n, alias: found.alias || null, profile: found.profile || null };
       diag('native list: zalo services ' + (Z.preview && Z.unread ? 'found' : 'partial') + (Z.fmt ? '' : ', no preview formatter'));
@@ -2510,7 +2511,7 @@
     }
 
     var pageStart = Date.now();
-    var lastSent = '', building = false, names = {}, namesAt = 0, groupRetryAt = 0; // tên + ảnh bạn bè / nhóm, lấy lại tối đa mỗi 60 s
+    var lastSent = '', building = false, names = {}, namesAt = 0, groupRetryAt = 0, cachedGroups = []; // tên + ảnh bạn bè / nhóm
     /**
      * Mã các hội thoại danh sách web đang hiện (đã lọc theo Ưu tiên / Khác, Chưa đọc, Phân loại...), theo thứ tự của
      * Zalo: prop "conversations" của component cha #conversationListId (danh sách ảo hóa chỉ vẽ vài dòng trong DOM).
@@ -2520,7 +2521,11 @@
       var fk = l && Object.keys(l).filter(function (k) { return k.indexOf('__react') === 0; })[0];
       for (var f = fk && l[fk], i = 0; f && i < 6; f = f.return, i++) {
         var c = f.memoizedProps && f.memoizedProps.conversations;
-        if (Array.isArray(c)) return c.map(String);
+        if (Array.isArray(c)) {
+          return c.map(function (it) {
+            return typeof it === 'string' ? it : (it && (it.convId || it.id || it.userId || ''));
+          }).filter(Boolean);
+        }
       }
       // Tab lọc không có hội thoại nào: Zalo bỏ hẳn danh sách, chỉ còn thanh lọc + màn trống.
       if (!l && document.querySelector('#sidebarNav .msg-filters-bar')) return [];
@@ -2535,12 +2540,15 @@
       try { me = String(z.st.getUserId ? z.st.getUserId() : ''); } catch (e) { /* ignore */ }
       var fresh = Date.now() - namesAt > 60000;
       Promise.all([z.st.getConversations(), fresh ? z.st.getFriends() : null, fresh ? z.st.getGroups() : null]).then(function (all) {
+        if (all[2]) cachedGroups = all[2];
         var convs = all[0] || [];
-        // getConversations chỉ có hội thoại 1-1, nhóm nằm ở ConvInfoDataManager.
+        // getConversations chỉ có hội thoại 1-1, nhóm nằm ở ConvInfoDataManager và getGroups.
         try {
           var hasConv = {};
           convs.forEach(function (c) { hasConv[c.userId] = true; });
           convs = convs.concat((z.info && z.info.getAllConvSync ? z.info.getAllConvSync() : []).filter(function (c) { return c && !hasConv[c.userId]; }));
+          convs.forEach(function (c) { hasConv[c.userId] = true; });
+          convs = convs.concat(cachedGroups.filter(function (g) { return g && !hasConv[g.userId]; }));
         } catch (e) { /* ignore */ }
         // Trang vừa tải: danh bạ / nhóm có thể chưa nạp (rỗng) — giữ tên cũ, lần dựng sau lấy lại ngay.
         if (fresh && ((all[1] || []).length || (all[2] || []).length)) {
@@ -2625,19 +2633,33 @@
           scheduleBuild(1000);
         }
         var order = webOrder();
-        if (order) {
+        if (order && order.length) {
           // Đúng tab lọc đang chọn trên thanh của Zalo, theo thứ tự của Zalo.
-          var byId = {};
+          var byId = {}, seen = {};
           list.forEach(function (it) { byId[it.id] = it; });
-          list = order.map(function (id) { return byId[id]; }).filter(Boolean);
-        } else list.sort(function (a, b) { return (b.p - a.p) || (b.t - a.t); });
+          var ordered = [];
+          order.forEach(function (id) {
+            if (byId[id] && !seen[id]) {
+              ordered.push(byId[id]);
+              seen[id] = true;
+            }
+          });
+          // Nối các hội thoại còn lại (nhóm, hội thoại tab khác...), sắp xếp theo ghim và thời gian
+          var rest = list.filter(function (it) { return !seen[it.id]; });
+          rest.sort(function (a, b) { return (b.p - a.p) || (b.t - a.t); });
+          list = ordered.concat(rest);
+        } else if (order && !order.length) {
+          list = [];
+        } else {
+          list.sort(function (a, b) { return (b.p - a.p) || (b.t - a.t); });
+        }
         document.documentElement.classList.toggle('zd-nempty', !!order && !order.length);
         // Trang vừa tải (lại): Zalo đã có danh sách hội thoại nhưng chưa nạp tin cuối / danh bạ — toàn "Chưa có tin
         // nhắn", tên là mã số, sai thứ tự. Đừng gửi bản đó đè lên danh sách app đang hiện; chờ nạp xong (tối đa 25 s
         // kể từ khi trang mở, phòng tài khoản ít hội thoại có tin thật).
         // "Có tên" = đã có trong danh bạ / nhóm (có cả ảnh); tên lấy tạm từ tin cuối thì chưa tính.
         var withMsg = 0, named = 0;
-        list.forEach(function (it) { if (it.t) withMsg++; if (names[it.id] || it.me) named++; });
+        list.forEach(function (it) { if (it.t) withMsg++; if ((it.n && it.n !== it.id) || names[it.id] || it.me || it.g) named++; });
         if (list.length && (!withMsg || !me || named < list.length * 0.6) && Date.now() - pageStart < 25000) {
           scheduleBuild(800);
           return;
@@ -2655,6 +2677,21 @@
       buildTimer = setTimeout(function () { safe(buildAndSend); }, ms);
     }
     api.requestConvList = function () { lastSent = ''; scheduleBuild(0); };
+    api.loadMoreConvs = function () {
+      safe(function () {
+        var cl = document.getElementById('conversationList');
+        var p = cl && (cl.closest('.virtualized-scroll') || cl.parentElement);
+        if (p && p.scrollTop + p.clientHeight < p.scrollHeight) {
+          p.scrollTop = Math.min(p.scrollHeight, p.scrollTop + 600);
+          p.dispatchEvent(new Event('scroll', { bubbles: true }));
+        }
+        var z = findZalo();
+        if (z && z.clc && z.clc.convDataManager && typeof z.clc.convDataManager.loadData === 'function') {
+          try { z.clc.convDataManager.loadData(); } catch (e) { /* ignore */ }
+        }
+        scheduleBuild(200);
+      });
+    };
     api.openConv = function (id) {
       var z = findZalo();
       if (z && z.conv && z.conv.openConversation) {

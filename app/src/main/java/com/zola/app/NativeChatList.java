@@ -191,6 +191,7 @@ public final class NativeChatList extends FrameLayout {
         listView.setOnScrollListener(new AbsListView.OnScrollListener() { // from class: com.zola.app.NativeChatList.2
             private int lastTop = 0;
             private int lastFirst = 0;
+            private long lastLoadMore = 0;
 
             @Override // android.widget.AbsListView.OnScrollListener
             public void onScrollStateChanged(AbsListView absListView, int i) {
@@ -226,6 +227,13 @@ public final class NativeChatList extends FrameLayout {
                 NativeChatList.this.glass.invalidate();
                 if (iRound != 0 || z) {
                     WebViewHolder.evalMain("window.__zw&&window.__zw.nativeScroll&&window.__zw.nativeScroll(" + iRound + "," + z + ")");
+                }
+                if (i3 > 0 && i + i2 >= i3 - 4) {
+                    long now = SystemClock.uptimeMillis();
+                    if (now - this.lastLoadMore > 800) {
+                        this.lastLoadMore = now;
+                        WebViewHolder.evalMain("window.__zw&&window.__zw.loadMoreConvs&&window.__zw.loadMoreConvs()");
+                    }
                 }
             }
         });
