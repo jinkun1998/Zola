@@ -5,7 +5,6 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.text.TextUtils
-import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -58,6 +57,8 @@ class NativeChatList(
         addView(layout)
         loadCachedData()
     }
+
+    fun hasData(): Boolean = items.isNotEmpty()
 
     private fun createHeaderView(context: Context): LinearLayout {
         val dp = context.resources.displayMetrics.density
@@ -254,4 +255,3 @@ class NativeChatList(
         }
     }
 }
-// ponytail: basic BaseAdapter; upgrade to RecyclerView + DiffUtil + Glide for avatar image caching when performance demands.

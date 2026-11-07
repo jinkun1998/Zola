@@ -66,6 +66,9 @@ class MainActivity : AppCompatActivity() {
         webView.addJavascriptInterface(
             JsBridge { json ->
                 nativeList.setData(json)
+                if (!inConversation && nativeList.hasData()) {
+                    showNativeUI()
+                }
             },
             "ZaloBridge"
         )
@@ -73,12 +76,15 @@ class MainActivity : AppCompatActivity() {
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val host = request.url.host ?: return true
-                return !(host == "zalo.me" || host.endsWith(".zalo.me"))
+                return !(host.contains("zalo.me") || host.contains("zalo.vn") || host.contains("zadn.vn"))
             }
 
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
                 injectShim()
+                if (url.contains("id.zalo.me") || url.contains("login")) {
+                    hideNativeUIForLogin()
+                }
             }
         }
 
@@ -102,7 +108,6 @@ class MainActivity : AppCompatActivity() {
         root.addView(nativeList)
 
         nativeDock = NativeDock(this) { tab ->
-            // Tab 0 is messages; other tabs switch views
             if (tab == 0 && inConversation) {
                 closeConversation()
             }
@@ -114,6 +119,20 @@ class MainActivity : AppCompatActivity() {
             )
         }
         root.addView(nativeDock)
+
+        if (!nativeList.hasData()) {
+            hideNativeUIForLogin()
+        }
+    }
+
+    private fun hideNativeUIForLogin() {
+        nativeList.visibility = View.GONE
+        nativeDock.visibility = View.GONE
+    }
+
+    private fun showNativeUI() {
+        nativeList.visibility = View.VISIBLE
+        nativeDock.visibility = View.VISIBLE
     }
 
     private fun openConversation(convId: String) {
@@ -161,4 +180,3 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Exception) {}
     }
 }
-// ponytail: slide translation animation; upgrade to shared-element bitmap snapshots for flicker-free Webview sync transitions.
