@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="zalo_blue">#0068FF</color>
+    <color name="zalo_light_bg">#F4F5F7</color>
+    <color name="zalo_text_primary">#081C36</color>
+    <color name="zalo_text_secondary">#768494</color>
+    <color name="zalo_divider">#E5E7EB</color>
+    <color name="zalo_badge">#E11D48</color>
+</resources>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Zola" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorPrimary">@color/zalo_blue</item>
+        <item name="android:statusBarColor">@color/zalo_blue</item>
+        <item name="android:windowBackground">#FFFFFF</item>
+    </style>
+</resources>
