@@ -1394,6 +1394,17 @@ public final class NativeChatList extends FrameLayout {
         final ImageView pinIc;
         final TextView text;
         final TextView time;
+        private final Paint divPaint = new Paint(1);
+
+        @Override
+        protected void dispatchDraw(Canvas canvas) {
+            super.dispatchDraw(canvas);
+            float h = getHeight();
+            float stroke = Math.max(1.0f, NativeChatList.this.density * 0.6f);
+            boolean dark = Color.luminance(NativeChatList.this.bg) < 0.4f;
+            this.divPaint.setColor(dark ? 0x30FFFFFF : 0x26000000);
+            canvas.drawRect(NativeChatList.this.dp(76.0f), h - stroke, getWidth(), h, this.divPaint);
+        }
 
         void setAvatar(Bitmap bitmap) {
             Drawable drawable = this.avatar.getDrawable();

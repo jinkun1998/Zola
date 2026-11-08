@@ -776,6 +776,7 @@
       // Không tô nền khi chạm / rê (trên cảm ứng :hover dính lại): nút thanh trên, thanh lọc, tab — nhìn tự nhiên hơn.
       'html.zd-m .msg-filters-bar, html.zd-m .msg-filters-bar * { -webkit-tap-highlight-color: transparent !important; }',
       'html.zd-m #sidebarNav { border: none !important; border-right: none !important; border-bottom: none !important; box-shadow: none !important; }',
+      'html.zd-m #conversationList .msg-item { border-bottom: 0.5px solid rgba(127,127,127,.2) !important; }',
       'html.zd-m .msg-filters-bar, html.zd-m .msg-filters-bar * { border: none !important; border-bottom: none !important; box-shadow: none !important; }',
       'html.zd-m #contact-search .z--btn--v2, html.zd-m #contact-search .z--btn--v2:hover, html.zd-m #contact-search .z--btn--v2:active,' +
         ' html.zd-m .msg-filters-bar .z--btn--v2, html.zd-m .msg-filters-bar .z--btn--v2:hover, html.zd-m .msg-filters-bar .z--btn--v2:active,' +
