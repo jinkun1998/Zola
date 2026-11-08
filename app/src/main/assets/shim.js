@@ -1683,6 +1683,9 @@
       document.head.appendChild(s);
       addStyle.done = true;
     }
+    document.documentElement.classList.add('zd-m');
+    document.documentElement.classList.toggle('zd-twocol', innerWidth >= 640);
+    addStyle();
 
     /** Tạo nút ← của app (gắn vào body, vị trí đặt bằng style top/height). */
     function backButton(id, onClick) {

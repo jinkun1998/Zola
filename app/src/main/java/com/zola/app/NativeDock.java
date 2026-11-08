@@ -73,6 +73,9 @@ public final class NativeDock extends FrameLayout {
         super(context);
         this.W = 228;
         this.n = 3;
+        if (context.getResources().getConfiguration().screenWidthDp >= 600) {
+            this.columnWidth = dp(340.0f);
+        }
         this.tint = new Paint(1);
         Paint paint = new Paint(1);
         this.pill = paint;

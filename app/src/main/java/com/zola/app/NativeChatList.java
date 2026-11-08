@@ -145,6 +145,9 @@ public final class NativeChatList extends FrameLayout {
         this.tabSel = -1;
         this.tabNames = "";
         this.slideRun = this::runTabSlide;
+        if (context.getResources().getConfiguration().screenWidthDp >= 600) {
+            this.columnWidth = dp(340.0f);
+        }
         this.density = getResources().getDisplayMetrics().density;
         this.zoom = Prefs.textZoom(context) / 100.0f;
         ListView listView = new ListView(context) { // from class: com.zola.app.NativeChatList.1
@@ -524,6 +527,14 @@ public final class NativeChatList extends FrameLayout {
             this.booting = true;
             try {
                 JSONObject jSONObject = new JSONObject(Prefs.sp(getContext()).getString(BOOT_LAYOUT, "{}"));
+                int sw = jSONObject.optInt("sw", 0);
+                if (sw > 0) {
+                    setColumnWidthPx(dp(sw));
+                } else if (getResources().getConfiguration().screenWidthDp >= 600) {
+                    setColumnWidthPx(dp(340.0f));
+                } else {
+                    setColumnWidthPx(0);
+                }
                 applyColors(parseCss(jSONObject.optString("bg")), parseCss(jSONObject.optString("fg")), parseCss(jSONObject.optString("fg2")));
                 animateTop(dp(jSONObject.optInt("top", 96)));
                 jSONArrayOptJSONArray = jSONObject.optJSONArray("tabs");
@@ -1234,16 +1245,7 @@ public final class NativeChatList extends FrameLayout {
                 this.shownAt = SystemClock.uptimeMillis();
             }
             int sw = jSONObject.optInt("sw", 0);
-            int newColW = sw > 0 ? dp(sw) : 0;
-            if (this.columnWidth != newColW) {
-                this.columnWidth = newColW;
-                ViewGroup.LayoutParams lp = getLayoutParams();
-                if (lp != null) {
-                    lp.width = newColW > 0 ? newColW : ViewGroup.LayoutParams.MATCH_PARENT;
-                    setLayoutParams(lp);
-                }
-                invalidate();
-            }
+            setColumnWidthPx(sw > 0 ? dp(sw) : 0);
             setVisibility(z ? 0 : 8);
             int[] iArr = null;
             placeGlass(z ? jSONArrayOptJSONArray2 : null, jSONObject.optBoolean("dh"));
@@ -1276,6 +1278,18 @@ public final class NativeChatList extends FrameLayout {
             this.colBorderPaint.setColor(dark ? 0x2EFFFFFF : 0x22000000);
             float right = getWidth();
             canvas.drawRect(right - stroke, 0.0f, right, getHeight(), this.colBorderPaint);
+        }
+    }
+
+    public void setColumnWidthPx(int newColW) {
+        if (this.columnWidth != newColW) {
+            this.columnWidth = newColW;
+            ViewGroup.LayoutParams lp = getLayoutParams();
+            if (lp != null) {
+                lp.width = newColW > 0 ? newColW : ViewGroup.LayoutParams.MATCH_PARENT;
+                setLayoutParams(lp);
+            }
+            invalidate();
         }
     }
 

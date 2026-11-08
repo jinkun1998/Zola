@@ -226,6 +226,11 @@ class MainActivity : AppCompatActivity() {
         super.onConfigurationChanged(newConfig)
         val night = (newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         applyNightMode(night)
+        val isWide = newConfig.screenWidthDp >= 600
+        val colW = if (isWide) nativeList.dp(340f) else 0
+        nativeList.setColumnWidthPx(colW)
+        nativeDock.setColumnWidth(colW)
+        webView.passRight = colW
         webView.evaluateJavascript("window.__zw && window.__zw.syncNative && window.__zw.syncNative(); window.__zw && window.__zw.syncDock && window.__zw.syncDock();", null)
     }
 
@@ -256,6 +261,7 @@ class MainActivity : AppCompatActivity() {
             nativeDock.hideForOpen()
         }
         nativeList.boot(true)
+        nativeDock.setColumnWidth(nativeList.columnWidth)
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -395,9 +401,17 @@ class MainActivity : AppCompatActivity() {
         }
 
         webContainer.removeAllViews()
-        webContainer.addView(nativeList, match())
+        val listParams = if (nativeList.columnWidth > 0) {
+            FrameLayout.LayoutParams(nativeList.columnWidth, FrameLayout.LayoutParams.MATCH_PARENT)
+        } else {
+            match()
+        }
+        webContainer.addView(nativeList, listParams)
         webContainer.addView(webView, match())
         webContainer.addView(nativeDock, nativeDock.params())
+        if (nativeList.columnWidth > 0) {
+            webView.passRight = nativeList.columnWidth
+        }
     }
 
     fun onLoginPage() {
