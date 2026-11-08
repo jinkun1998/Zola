@@ -1,7 +1,12 @@
 package com.zola.app;
 
-import android.app.Activity;
-import android.app.AlertDialog;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SwitchCompat;
+import android.content.res.Configuration;
+import android.graphics.drawable.GradientDrawable;
+import android.view.Window;
+import android.view.WindowInsetsController;
 import android.app.NotificationManager;
 import android.content.ActivityNotFoundException;
 import android.content.ClipData;
@@ -30,12 +35,11 @@ import android.widget.RadioGroup;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.Spinner;
-import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.util.Locale;
 
-public class SettingsActivity extends Activity {
+public class SettingsActivity extends AppCompatActivity {
     static final String EXTRA_PAGE = "page";
     private static final String P_BUBBLES = "bubbles";
     private static final String P_CALLS = "calls";
@@ -52,6 +56,16 @@ public class SettingsActivity extends Activity {
     private Button ringtoneButton;
     private TextView status;
     private Button storageButton;
+
+    private boolean isNight() {
+        return (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+    }
+
+    private int colorBg() { return isNight() ? 0xFF22262B : 0xFFFFFFFF; }
+    private int colorPrimary() { return isNight() ? 0xFFFFFFFF : 0xFF081C36; }
+    private int colorSecondary() { return isNight() ? 0xFF9EACB9 : 0xFF768494; }
+    private int colorDivider() { return isNight() ? 0xFF33373D : 0xFFDFE2E7; }
+
 
     interface OnToggle {
         void changed(boolean z);
@@ -100,8 +114,18 @@ public class SettingsActivity extends Activity {
     @Override
     protected void onCreate(Bundle bundle) {
         super.onCreate(bundle);
+        boolean night = isNight();
+        Window w = getWindow();
+        if (Build.VERSION.SDK_INT >= 29) {
+            w.setNavigationBarContrastEnforced(false);
+            w.setStatusBarContrastEnforced(false);
+        }
+        w.setStatusBarColor(night ? 0xFF22262B : 0xFF0052CC);
+        w.setNavigationBarColor(night ? 0xFF22262B : 0xFFFFFFFF);
+
         ScrollView scrollView = new ScrollView(this);
         scrollView.setFitsSystemWindows(true);
+        scrollView.setBackgroundColor(colorBg());
         list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         int pad = dp(16);
@@ -109,9 +133,21 @@ public class SettingsActivity extends Activity {
         scrollView.addView(list);
         setContentView(scrollView);
 
+        if (Build.VERSION.SDK_INT >= 30) {
+            try {
+                WindowInsetsController controller = w.getInsetsController();
+                if (controller != null) {
+                    controller.setSystemBarsAppearance(
+                        night ? 0 : WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
+                        WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+                    );
+                }
+            } catch (Exception unused) {}
+        }
+
         String page = getIntent().getStringExtra(EXTRA_PAGE);
-        if (page != null && getActionBar() != null) {
-            getActionBar().setDisplayHomeAsUpEnabled(true);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         }
         if (P_PERMS.equals(page)) {
             setTitle("Cấp quyền");
@@ -148,10 +184,17 @@ public class SettingsActivity extends Activity {
     private void buildMain() {
         status = new TextView(this);
         status.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14.0f);
-        status.setPadding(dp(12), dp(10), dp(12), dp(10));
-        status.setBackgroundColor(0xfff1f3f4);
+        status.setPadding(dp(14), dp(12), dp(14), dp(12));
+        boolean night = isNight();
+        GradientDrawable statusBg = new GradientDrawable();
+        statusBg.setCornerRadius(dp(10));
+        statusBg.setColor(night ? 0xFF2A2F37 : 0xFFEBF3FF);
+        statusBg.setStroke(dp(1), night ? 0xFF383E48 : 0xFFC2DBFF);
+        status.setBackground(statusBg);
+        status.setTextColor(night ? 0xFFFFFFFF : 0xFF081C36);
+        status.setLineSpacing(dp(3), 1.0f);
         list.addView(status);
-        list.addView(new View(this), new LinearLayout.LayoutParams(1, dp(8)));
+        list.addView(new View(this), new LinearLayout.LayoutParams(1, dp(12)));
 
         navRow("Cấp quyền", "Thông báo, chạy nền không giới hạn pin, cuộc gọi khi khoá máy, lưu tệp", P_PERMS);
         navRow("Kết nối", "Chạy nền, tự chạy khi khởi động, nhận cuộc gọi đến, giữ kết nối khi khoá máy", P_CONN);
@@ -166,7 +209,7 @@ public class SettingsActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(16);
-        row.setPadding(dp(4), dp(14), dp(4), dp(14));
+        row.setPadding(dp(8), dp(14), dp(8), dp(14));
         TypedValue val = new TypedValue();
         getTheme().resolveAttribute(android.R.attr.selectableItemBackground, val, true);
         row.setBackgroundResource(val.resourceId);
@@ -176,23 +219,25 @@ public class SettingsActivity extends Activity {
 
         TextView tvTitle = new TextView(this);
         tvTitle.setText(title);
-        tvTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17.0f);
+        tvTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16.0f);
         tvTitle.setTypeface(Typeface.DEFAULT_BOLD);
-        tvTitle.setTextColor(0xff1a1a1a);
+        tvTitle.setTextColor(colorPrimary());
         textCol.addView(tvTitle);
 
         TextView tvDesc = new TextView(this);
         tvDesc.setText(desc);
         tvDesc.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13.0f);
-        tvDesc.setTextColor(0xff6b7280);
-        textCol.addView(tvDesc);
+        tvDesc.setTextColor(colorSecondary());
+        LinearLayout.LayoutParams lpDesc = new LinearLayout.LayoutParams(-1, -2);
+        lpDesc.topMargin = dp(2);
+        textCol.addView(tvDesc, lpDesc);
 
         row.addView(textCol, new LinearLayout.LayoutParams(0, -2, 1.0f));
 
         TextView chevron = new TextView(this);
         chevron.setText("›");
-        chevron.setTextSize(TypedValue.COMPLEX_UNIT_SP, 26.0f);
-        chevron.setTextColor(0xff9ca3af);
+        chevron.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24.0f);
+        chevron.setTextColor(isNight() ? 0xFF8A94A0 : 0xFF9CA3AF);
         chevron.setPadding(dp(12), 0, dp(4), 0);
         row.addView(chevron);
 
@@ -200,8 +245,8 @@ public class SettingsActivity extends Activity {
         list.addView(row, new LinearLayout.LayoutParams(-1, -2));
 
         View divider = new View(this);
-        divider.setBackgroundColor(0xffe5e7eb);
-        list.addView(divider, new LinearLayout.LayoutParams(-1, 1));
+        divider.setBackgroundColor(colorDivider());
+        list.addView(divider, new LinearLayout.LayoutParams(-1, dp(1)));
     }
 
     private void buildPermissions() {
@@ -394,30 +439,40 @@ public class SettingsActivity extends Activity {
     }
 
     private void toggle(String str, final String key, boolean def, final OnToggle onToggle) {
-        Switch sw = new Switch(this);
+        SwitchCompat sw = new SwitchCompat(this);
         sw.setText(str);
-        sw.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16.0f);
-        sw.setPadding(0, dp(10), 0, dp(10));
+        sw.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15.0f);
+        sw.setTextColor(colorPrimary());
+        sw.setPadding(dp(8), dp(12), dp(8), dp(12));
         sw.setChecked(Prefs.bool(this, key, def));
         sw.setOnCheckedChangeListener((btn, isChecked) -> {
             Prefs.put(this, key, isChecked);
             if (onToggle != null) onToggle.changed(isChecked);
         });
         list.addView(sw, new LinearLayout.LayoutParams(-1, -2));
+
+        View divider = new View(this);
+        divider.setBackgroundColor(colorDivider());
+        list.addView(divider, new LinearLayout.LayoutParams(-1, dp(1)));
     }
 
     private void choice(String str, String[] labels, final int[] values, final String key, int current, final boolean reload) {
         TextView tv = new TextView(this);
         tv.setText(str);
-        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16.0f);
-        tv.setPadding(0, dp(10), 0, dp(4));
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15.0f);
+        tv.setTypeface(Typeface.DEFAULT_BOLD);
+        tv.setTextColor(colorPrimary());
+        tv.setPadding(dp(8), dp(14), dp(8), dp(6));
         list.addView(tv);
 
         RadioGroup group = new RadioGroup(this);
+        group.setPadding(dp(8), 0, dp(8), dp(8));
         for (int i = 0; i < labels.length; i++) {
             RadioButton rb = new RadioButton(this);
             rb.setId(i + 1000);
             rb.setText(labels[i]);
+            rb.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14.0f);
+            rb.setTextColor(colorSecondary());
             rb.setChecked(values[i] == current);
             group.addView(rb);
         }
@@ -429,13 +484,19 @@ public class SettingsActivity extends Activity {
             }
         });
         list.addView(group);
+
+        View divider = new View(this);
+        divider.setBackgroundColor(colorDivider());
+        list.addView(divider, new LinearLayout.LayoutParams(-1, dp(1)));
     }
 
     private void dropdown(String str, String[] items, int current, OnValue onValue) {
         TextView tv = new TextView(this);
         tv.setText(str);
-        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16.0f);
-        tv.setPadding(0, dp(10), 0, dp(4));
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15.0f);
+        tv.setTypeface(Typeface.DEFAULT_BOLD);
+        tv.setTextColor(colorPrimary());
+        tv.setPadding(dp(8), dp(14), dp(8), dp(6));
         list.addView(tv);
 
         Spinner spinner = new Spinner(this);
@@ -455,14 +516,22 @@ public class SettingsActivity extends Activity {
             @Override
             public void onNothingSelected(AdapterView<?> parent) {}
         });
-        list.addView(spinner, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams spLp = new LinearLayout.LayoutParams(-1, -2);
+        spLp.setMargins(dp(8), 0, dp(8), dp(8));
+        list.addView(spinner, spLp);
+
+        View divider = new View(this);
+        divider.setBackgroundColor(colorDivider());
+        list.addView(divider, new LinearLayout.LayoutParams(-1, dp(1)));
     }
 
     private void slider(final String str, int current, int max, final String unit, final OnValue onValue) {
         final TextView tv = new TextView(this);
         tv.setText(str + ": " + current + unit);
-        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16.0f);
-        tv.setPadding(0, dp(10), 0, dp(4));
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15.0f);
+        tv.setTypeface(Typeface.DEFAULT_BOLD);
+        tv.setTextColor(colorPrimary());
+        tv.setPadding(dp(8), dp(14), dp(8), dp(6));
         list.addView(tv);
 
         SeekBar seekBar = new SeekBar(this);
@@ -478,7 +547,13 @@ public class SettingsActivity extends Activity {
                 }
             }
         });
-        list.addView(seekBar, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams sbLp = new LinearLayout.LayoutParams(-1, -2);
+        sbLp.setMargins(dp(8), 0, dp(8), dp(8));
+        list.addView(seekBar, sbLp);
+
+        View divider = new View(this);
+        divider.setBackgroundColor(colorDivider());
+        list.addView(divider, new LinearLayout.LayoutParams(-1, dp(1)));
     }
 
     private String ringtoneLabel() {
@@ -647,10 +722,25 @@ public class SettingsActivity extends Activity {
     private Button button(String str, final Runnable runnable) {
         Button btn = new Button(this);
         btn.setText(str);
+        btn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15.0f);
         btn.setAllCaps(false);
+        boolean isDanger = str.contains("Đăng xuất") || str.contains("Xóa");
+        boolean night = isNight();
+        int textColor = isDanger ? 0xFFE11D48 : (night ? 0xFF3E8BFF : 0xFF0068FF);
+        int bgColor = night ? 0xFF2A2F37 : 0xFFF4F5F7;
+        int borderColor = isDanger ? (night ? 0xFF5C232B : 0xFFFFD2D8) : (night ? 0xFF383E48 : 0xFFDFE2E7);
+
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(dp(8));
+        bg.setColor(bgColor);
+        bg.setStroke(dp(1), borderColor);
+        btn.setBackground(bg);
+        btn.setTextColor(textColor);
+        btn.setTypeface(Typeface.DEFAULT_BOLD);
+        btn.setPadding(dp(16), dp(12), dp(16), dp(12));
         btn.setOnClickListener(v -> runnable.run());
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-        lp.topMargin = dp(4);
+        lp.topMargin = dp(8);
         list.addView(btn, lp);
         return btn;
     }
@@ -659,8 +749,9 @@ public class SettingsActivity extends Activity {
         TextView tv = new TextView(this);
         tv.setText(str);
         tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13.0f);
-        tv.setTextColor(0xff666666);
-        tv.setPadding(0, dp(24), 0, 0);
+        tv.setTextColor(colorSecondary());
+        tv.setPadding(dp(8), dp(18), dp(8), 0);
+        tv.setLineSpacing(dp(2), 1.0f);
         list.addView(tv);
     }
 
