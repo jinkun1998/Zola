@@ -719,10 +719,8 @@
       'html.zd-m.zd-twocol #sidebarNav, html.zd-m.zd-twocol #sidebarNav > :not(#main-tab), html.zd-m.zd-twocol #sidebarNav > :not(#main-tab) > * { background: transparent !important; }',
       'html.zd-m.zd-twocol #sidebarNav > :not(#main-tab) > :not(#contact-search) { opacity: 0 !important; pointer-events: none !important; }',
       'html.zd-m.zd-twocol #contact-search, html.zd-m.zd-twocol #sidebarNav .msg-filters-bar { opacity: 0 !important; }',
-      'html.zd-m.zd-twocol #loading-page, html.zd-m.zd-twocol [id*="loading"], html.zd-m.zd-twocol #app-theme-overlay, html.zd-m.zd-twocol .theme-transition-overlay, html.zd-m.zd-twocol .draggable, html.zd-m.zd-twocol [class*="loading"]:not(#container *) { position: fixed !important; left: 340px !important; top: 0 !important; right: 0 !important; bottom: 0 !important; width: calc(100% - 340px) !important; max-width: calc(100% - 340px) !important; min-width: 0 !important; height: 100% !important; box-sizing: border-box !important; overflow: hidden !important; background: var(--layer-background, #fff) !important; }',
-      'html.zd-m.zd-twocol #loading-page > :not(.zd-welcome) { display: none !important; }',
-      'html.zd-m.zd-twocol:not(.zd-chat):not(.zd-cdetail) #chatOnboard { display: flex !important; flex: 1 1 0 !important; width: 0 !important; height: 100% !important; min-width: 0 !important; position: relative !important; z-index: 1 !important; }',
-      'html.zd-m.zd-twocol.zd-chat #chatOnboard, html.zd-m.zd-twocol.zd-cdetail #chatOnboard { display: none !important; }',
+      'html.zd-m.zd-twocol #loading-page, html.zd-m.zd-twocol [id*="loading"], html.zd-m.zd-twocol #app-theme-overlay, html.zd-m.zd-twocol .theme-transition-overlay, html.zd-m.zd-twocol .draggable, html.zd-m.zd-twocol [class*="loading"]:not(#container *) { display: none !important; }',
+      'html.zd-m.zd-twocol #chatOnboard { display: none !important; }',
       'html.zd-m.zd-twocol #container > main, html.zd-m.zd-twocol #container > span > main, html.zd-m.zd-twocol #container > .contact-pages' +
         ' { position: relative !important; top: auto !important; left: auto !important; right: auto !important; bottom: auto !important;' +
         ' flex: 1 1 0 !important; width: 0 !important; height: 100% !important; min-width: 0 !important; max-width: none !important;' +
@@ -1695,39 +1693,7 @@
     document.documentElement.classList.add('zd-m');
     document.documentElement.classList.toggle('zd-twocol', isWide());
     addStyle();
-    function fixLoadingPage() {
-      if (!isWide()) return;
-      var lp = document.getElementById('loading-page');
-      if (lp) {
-        lp.style.setProperty('position', 'fixed', 'important');
-        lp.style.setProperty('left', '340px', 'important');
-        lp.style.setProperty('top', '0', 'important');
-        lp.style.setProperty('right', '0', 'important');
-        lp.style.setProperty('bottom', '0', 'important');
-        lp.style.setProperty('width', 'calc(100% - 340px)', 'important');
-        lp.style.setProperty('max-width', 'calc(100% - 340px)', 'important');
-        if (!lp.querySelector('.zd-welcome')) {
-          for (var i = 0; i < lp.children.length; i++) {
-            if (!lp.children[i].classList.contains('zd-welcome')) lp.children[i].style.display = 'none';
-          }
-          var isEn = (document.documentElement.lang === 'en' || (navigator.language && navigator.language.indexOf('vi') < 0));
-          var title = isEn ? 'Welcome to Zola!' : 'Chào mừng bạn đến với Zola!';
-          var desc = isEn
-            ? 'Explore chat and productivity tools optimized for large screens.'
-            : 'Khám phá những tiện ích hỗ trợ trò chuyện và làm việc tối ưu trên màn hình lớn.';
-          var tip = isEn ? 'Select a conversation to start chatting' : 'Chọn một hội thoại để bắt đầu trò chuyện';
 
-          var w = document.createElement('div');
-          w.className = 'zd-welcome chat-onboard';
-          w.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;padding:24px;box-sizing:border-box;user-select:none;';
-          w.innerHTML = '<div style="font-size:24px;font-weight:600;margin-bottom:12px;color:var(--text-information,#0068ff);">' + title + '</div>' +
-            '<div style="font-size:14px;color:var(--text-secondary,#77859c);max-width:380px;line-height:1.5;margin-bottom:16px;">' + desc + '</div>' +
-            '<div style="font-size:13px;color:var(--text-secondary,#9aa2b2);">' + tip + '</div>';
-          lp.appendChild(w);
-        }
-      }
-    }
-    new MutationObserver(function () { fixLoadingPage(); }).observe(document.documentElement, { childList: true, subtree: true });
 
     /** Tạo nút ← của app (gắn vào body, vị trí đặt bằng style top/height). */
     function backButton(id, onClick) {

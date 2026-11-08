@@ -33,6 +33,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webView: ZaloWebView
     private lateinit var nativeList: NativeChatList
     private lateinit var nativeDock: NativeDock
+    private lateinit var welcomeView: WelcomeView
+    private var chatOpen: Boolean = false
 
     private val bridgeToken = UUID.randomUUID().toString()
     private lateinit var fullScript: String
@@ -219,6 +221,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         applyBarColors()
+        if (::welcomeView.isInitialized) {
+            welcomeView.applyColors(night)
+        }
         WebViewHolder.evalMain("window.__zw && window.__zw.refreshBars && window.__zw.refreshBars()")
     }
 
@@ -233,9 +238,20 @@ class MainActivity : AppCompatActivity() {
         webView.passRight = colW
         if (isWide) {
             nativeList.translationZ = 1000f
+            if (::welcomeView.isInitialized) welcomeView.translationZ = 999f
             webView.setBackgroundColor(0)
         } else {
             nativeList.translationZ = 0f
+            if (::welcomeView.isInitialized) welcomeView.translationZ = 0f
+        }
+        if (::welcomeView.isInitialized) {
+            val welcomeLp = welcomeView.layoutParams as? FrameLayout.LayoutParams
+            if (welcomeLp != null) {
+                welcomeLp.leftMargin = colW
+                welcomeView.layoutParams = welcomeLp
+            }
+            welcomeView.applyColors(night)
+            updateWelcomeVisibility()
         }
         webView.evaluateJavascript("window.__zw && window.__zw.syncNative && window.__zw.syncNative(); window.__zw && window.__zw.syncDock && window.__zw.syncDock();", null)
     }
@@ -266,6 +282,12 @@ class MainActivity : AppCompatActivity() {
         }
         nativeList.onOpen = Runnable {
             nativeDock.hideForOpen()
+        }
+        nativeList.onChatSelected = Runnable {
+            setChatOpen(true)
+        }
+        nativeList.onChatDeselected = Runnable {
+            setChatOpen(false)
         }
         nativeList.boot(true)
         nativeDock.setColumnWidth(nativeList.columnWidth)
@@ -407,6 +429,8 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        welcomeView = WelcomeView(this)
+
         webContainer.removeAllViews()
         val listParams = if (nativeList.columnWidth > 0) {
             FrameLayout.LayoutParams(nativeList.columnWidth, FrameLayout.LayoutParams.MATCH_PARENT)
@@ -415,17 +439,29 @@ class MainActivity : AppCompatActivity() {
         }
         webContainer.addView(nativeList, listParams)
         webContainer.addView(webView, match())
+
+        val welcomeParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        ).apply {
+            leftMargin = nativeList.columnWidth
+        }
+        webContainer.addView(welcomeView, welcomeParams)
         webContainer.addView(nativeDock, nativeDock.params())
+
         if (nativeList.columnWidth > 0) {
             nativeList.translationZ = 1000f
+            welcomeView.translationZ = 999f
             webView.passRight = nativeList.columnWidth
             webView.setBackgroundColor(0)
         }
+        updateWelcomeVisibility()
     }
 
     fun onLoginPage() {
         nativeList.cancelBoot()
         nativeDock.hideNow()
+        setChatOpen(true)
         webView.setBackgroundColor(Color.WHITE)
         webView.passTop = -1
     }
@@ -443,6 +479,14 @@ class MainActivity : AppCompatActivity() {
     fun onNativeLayout(json: String, wv: ZaloWebView) {
         nativeList.setLayout(json, wv)
         nativeDock.setColumnWidth(nativeList.columnWidth)
+        if (::welcomeView.isInitialized) {
+            val lp = welcomeView.layoutParams as? FrameLayout.LayoutParams
+            if (lp != null && lp.leftMargin != nativeList.columnWidth) {
+                lp.leftMargin = nativeList.columnWidth
+                welcomeView.layoutParams = lp
+            }
+            updateWelcomeVisibility()
+        }
     }
 
     fun onSystemBars(top: String?, bottom: String?) {
@@ -480,9 +524,30 @@ class MainActivity : AppCompatActivity() {
 
     fun onConvOpened(id: String?) {
         nativeList.setSelectedId(id)
+        if (!id.isNullOrEmpty()) {
+            setChatOpen(true)
+        }
     }
 
-    fun onMobileState(open: Boolean) {}
+    fun onMobileState(open: Boolean) {
+        setChatOpen(open)
+    }
+
+    fun updateWelcomeVisibility() {
+        if (!::welcomeView.isInitialized) return
+        val isWide = nativeList.columnWidth > 0
+        welcomeView.visibility = if (isWide && !chatOpen) View.VISIBLE else View.GONE
+    }
+
+    fun setChatOpen(open: Boolean) {
+        if (!open) {
+            nativeList.setSelectedId(null)
+        }
+        if (chatOpen != open) {
+            chatOpen = open
+            updateWelcomeVisibility()
+        }
+    }
 
     private fun closePopup(view: View?) {
         if (view == null) return

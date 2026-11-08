@@ -97,6 +97,8 @@ public final class NativeChatList extends FrameLayout {
     private ZaloWebView lastWv;
     private final ListView listView;
     Runnable onOpen;
+    public Runnable onChatSelected;
+    public Runnable onChatDeselected;
     private long openingAt;
     private String pendingOpen;
     private String savedBoot;
@@ -274,7 +276,18 @@ public final class NativeChatList extends FrameLayout {
                 runnable.run();
             }
         }
+        if (this.columnWidth > 0 && Objects.equals(this.selectedId, item.id)) {
+            setSelectedId(null);
+            WebViewHolder.evalMain("window.__zw&&window.__zw.mobileHome&&window.__zw.mobileHome()");
+            if (this.onChatDeselected != null) {
+                this.onChatDeselected.run();
+            }
+            return;
+        }
         setSelectedId(item.id);
+        if (this.onChatSelected != null) {
+            this.onChatSelected.run();
+        }
         WebViewHolder.evalMain("window.__zw&&window.__zw.openConv&&window.__zw.openConv(" + JSONObject.quote(item.id) + ")");
     }
 
