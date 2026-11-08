@@ -1259,7 +1259,7 @@ public final class NativeChatList extends FrameLayout {
                     iArr = new int[]{dp(jSONArrayOptJSONArray2.optInt(0)), dp(jSONArrayOptJSONArray2.optInt(1)), dp(jSONArrayOptJSONArray2.optInt(2)), dp(jSONArrayOptJSONArray2.optInt(3))};
                 }
                 zaloWebView.passExclude = iArr;
-                zaloWebView.setBackgroundColor(z ? i : MainActivity.pageBottomColor());
+                zaloWebView.setBackgroundColor((z || this.columnWidth > 0) ? i : MainActivity.pageBottomColor());
             }
             if (z) {
                 animateTop(iDp);

@@ -713,6 +713,11 @@
       'html.zd-m.zd-twocol #container { display: flex !important; flex-direction: row !important; overflow: hidden !important; width: 100% !important; height: 100% !important; }',
       'html.zd-m.zd-twocol #sidebarNav { flex: 0 0 340px !important; width: 340px !important; max-width: 340px !important; min-width: 340px !important; height: 100% !important; border-right: 1px solid rgba(127,127,127,.18) !important; box-sizing: border-box !important; }',
       'html.zd-m.zd-twocol #sidebarNav > :not(#main-tab) { width: 100% !important; max-width: 100% !important; flex: 1 1 auto !important; }',
+      'html.zd-m.zd-twocol, html.zd-m.zd-twocol body, html.zd-m.zd-twocol #app-page { background: transparent !important; }',
+      'html.zd-m.zd-twocol #sidebarNav, html.zd-m.zd-twocol #sidebarNav > :not(#main-tab), html.zd-m.zd-twocol #sidebarNav > :not(#main-tab) > * { background: transparent !important; }',
+      'html.zd-m.zd-twocol #sidebarNav > :not(#main-tab) > :not(#contact-search) { opacity: 0 !important; pointer-events: none !important; }',
+      'html.zd-m.zd-twocol #contact-search, html.zd-m.zd-twocol #sidebarNav .msg-filters-bar { opacity: 0 !important; }',
+      'html.zd-m.zd-twocol #app-theme-overlay, html.zd-m.zd-twocol .theme-transition-overlay, html.zd-m.zd-twocol .draggable, html.zd-m.zd-twocol [class*="loading"]:not(#container *) { left: 340px !important; width: calc(100% - 340px) !important; max-width: calc(100% - 340px) !important; }',
       'html.zd-m.zd-twocol:not(.zd-chat):not(.zd-cdetail) #chatOnboard { display: flex !important; flex: 1 1 0 !important; width: 0 !important; height: 100% !important; min-width: 0 !important; position: relative !important; z-index: 1 !important; }',
       'html.zd-m.zd-twocol.zd-chat #chatOnboard, html.zd-m.zd-twocol.zd-cdetail #chatOnboard { display: none !important; }',
       'html.zd-m.zd-twocol #container > main, html.zd-m.zd-twocol #container > span > main, html.zd-m.zd-twocol #container > .contact-pages' +

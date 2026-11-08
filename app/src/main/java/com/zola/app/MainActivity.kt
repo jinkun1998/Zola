@@ -411,6 +411,7 @@ class MainActivity : AppCompatActivity() {
         webContainer.addView(nativeDock, nativeDock.params())
         if (nativeList.columnWidth > 0) {
             webView.passRight = nativeList.columnWidth
+            webView.setBackgroundColor(0)
         }
     }
 
@@ -455,7 +456,7 @@ class MainActivity : AppCompatActivity() {
         barsLoaded = true
         Prefs.put(this, "bar_top", top)
         Prefs.put(this, "bar_bottom", bottom)
-        if (nativeList.visibility != View.VISIBLE) {
+        if (nativeList.visibility != View.VISIBLE && nativeList.columnWidth <= 0) {
             webView.setBackgroundColor(bottom)
         }
         applyBarColors()
