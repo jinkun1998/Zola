@@ -33,7 +33,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Release APK
-        run: ./gradlew assembleRelease --no-daemon
+        run: ./gradlew assembleRelease --no-daemon || (sleep 5 && ./gradlew assembleRelease --no-daemon)
 
       - name: Prepare APK for Release
         run: cp app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/Zola.apk
