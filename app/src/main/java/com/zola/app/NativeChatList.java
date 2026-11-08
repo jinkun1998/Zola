@@ -78,6 +78,9 @@ public final class NativeChatList extends FrameLayout {
     private final Adapter adapter;
     private boolean announced;
     private int bg;
+    private int columnWidth = 0;
+    private String selectedId = null;
+    private final Paint colBorderPaint = new Paint(1);
     private boolean bootEnding;
     private boolean booting;
     private boolean borrowed;
@@ -251,7 +254,7 @@ public final class NativeChatList extends FrameLayout {
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$new$0(AdapterView adapterView, View view, int i, long j) {
-        if (opening()) {
+        if (this.columnWidth <= 0 && opening()) {
             return;
         }
         Item item = this.items.get(i);
@@ -259,11 +262,14 @@ public final class NativeChatList extends FrameLayout {
             this.pendingOpen = item.id;
             return;
         }
-        this.openingAt = SystemClock.uptimeMillis();
-        Runnable runnable = this.onOpen;
-        if (runnable != null) {
-            runnable.run();
+        if (this.columnWidth <= 0) {
+            this.openingAt = SystemClock.uptimeMillis();
+            Runnable runnable = this.onOpen;
+            if (runnable != null) {
+                runnable.run();
+            }
         }
+        setSelectedId(item.id);
         WebViewHolder.evalMain("window.__zw&&window.__zw.openConv&&window.__zw.openConv(" + JSONObject.quote(item.id) + ")");
     }
 
@@ -1227,11 +1233,23 @@ public final class NativeChatList extends FrameLayout {
             if (z && getVisibility() != 0) {
                 this.shownAt = SystemClock.uptimeMillis();
             }
+            int sw = jSONObject.optInt("sw", 0);
+            int newColW = sw > 0 ? dp(sw) : 0;
+            if (this.columnWidth != newColW) {
+                this.columnWidth = newColW;
+                ViewGroup.LayoutParams lp = getLayoutParams();
+                if (lp != null) {
+                    lp.width = newColW > 0 ? newColW : ViewGroup.LayoutParams.MATCH_PARENT;
+                    setLayoutParams(lp);
+                }
+                invalidate();
+            }
             setVisibility(z ? 0 : 8);
             int[] iArr = null;
             placeGlass(z ? jSONArrayOptJSONArray2 : null, jSONObject.optBoolean("dh"));
             if (zaloWebView != null) {
                 zaloWebView.passTop = z2 ? 0 : -1;
+                zaloWebView.passRight = this.columnWidth;
                 if (!z || jSONArrayOptJSONArray2 == null) {
                     i = 0;
                 } else {
@@ -1246,6 +1264,31 @@ public final class NativeChatList extends FrameLayout {
             }
         } catch (Exception e) {
             Log.w("Zola", "bad native layout", e);
+        }
+    }
+
+    @Override
+    protected void dispatchDraw(Canvas canvas) {
+        super.dispatchDraw(canvas);
+        if (this.columnWidth > 0) {
+            float stroke = Math.max(1.0f, this.density);
+            boolean dark = Color.luminance(this.bg) < 0.4f;
+            this.colBorderPaint.setColor(dark ? 0x2EFFFFFF : 0x22000000);
+            float right = getWidth();
+            canvas.drawRect(right - stroke, 0.0f, right, getHeight(), this.colBorderPaint);
+        }
+    }
+
+    public int getColumnWidth() {
+        return this.columnWidth;
+    }
+
+    public void setSelectedId(String id) {
+        if (!TextUtils.equals(this.selectedId, id)) {
+            this.selectedId = id;
+            if (this.adapter != null) {
+                this.adapter.notifyDataSetChanged();
+            }
         }
     }
 
@@ -1498,6 +1541,12 @@ public final class NativeChatList extends FrameLayout {
         void bind(Item item) {
             String strValueOf;
             int i;
+            if (NativeChatList.this.columnWidth > 0 && TextUtils.equals(NativeChatList.this.selectedId, item.id)) {
+                boolean dark = Color.luminance(NativeChatList.this.bg) < 0.4f;
+                setBackgroundColor(dark ? 0x26FFFFFF : 0x140068FF);
+            } else {
+                setBackgroundColor(0);
+            }
             int i2 = (item.unread > 0 || item.mention > 0) ? 1 : 0;
             this.name.setText(item.name);
             this.name.setTextColor(NativeChatList.this.fg);

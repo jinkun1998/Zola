@@ -17,6 +17,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.PathInterpolator;
+import android.view.Gravity;
 import android.widget.FrameLayout;
 import androidx.core.view.ViewCompat;
 import java.util.regex.Matcher;
@@ -31,6 +32,7 @@ public final class NativeDock extends FrameLayout {
     private static final int MAX = 5;
     private static final String SAVED = "native_dock_state";
     private int W;
+    private int columnWidth = 0;
     private final Paint badgeBg;
     private final Paint badgeText;
     private final String[] badges;
@@ -154,8 +156,22 @@ public final class NativeDock extends FrameLayout {
         invalidate();
     }
 
+    void setColumnWidth(int w) {
+        if (this.columnWidth == w) {
+            return;
+        }
+        this.columnWidth = w;
+        if (getParent() != null) {
+            setLayoutParams(params());
+        }
+    }
+
     FrameLayout.LayoutParams params() {
-        FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(dp(this.W + 48), dp(104.0f), 81);
+        int gravity = this.columnWidth > 0 ? (Gravity.BOTTOM | Gravity.START) : (Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(dp(this.W + 48), dp(104.0f), gravity);
+        if (this.columnWidth > 0) {
+            layoutParams.leftMargin = Math.max(0, (this.columnWidth - dp(this.W + 48)) / 2);
+        }
         layoutParams.bottomMargin = dp(Prefs.dockBottom(getContext()) - 24);
         return layoutParams;
     }

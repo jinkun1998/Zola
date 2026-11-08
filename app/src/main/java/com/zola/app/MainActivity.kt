@@ -226,6 +226,7 @@ class MainActivity : AppCompatActivity() {
         super.onConfigurationChanged(newConfig)
         val night = (newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         applyNightMode(night)
+        webView.evaluateJavascript("window.__zw && window.__zw.syncNative && window.__zw.syncNative(); window.__zw && window.__zw.syncDock && window.__zw.syncDock();", null)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -418,6 +419,7 @@ class MainActivity : AppCompatActivity() {
 
     fun onNativeLayout(json: String, wv: ZaloWebView) {
         nativeList.setLayout(json, wv)
+        nativeDock.setColumnWidth(nativeList.columnWidth)
     }
 
     fun onSystemBars(top: String?, bottom: String?) {
@@ -453,7 +455,9 @@ class MainActivity : AppCompatActivity() {
         nativeList.setConn(state)
     }
 
-    fun onConvOpened(id: String?) {}
+    fun onConvOpened(id: String?) {
+        nativeList.setSelectedId(id)
+    }
 
     fun onMobileState(open: Boolean) {}
 

@@ -598,7 +598,7 @@
         try { b.click(); } finally { passBack = false; }
       }
     }
-    if (!mobile || !m || leaving) { go(); return true; }
+    if (!mobile || !m || leaving || innerWidth >= 640) { go(); return true; }
     // Trượt khung ra trước (CSS .zd-leave) rồi mới quay lại danh sách.
     leaving = true;
     m.classList.add('zd-leave');
@@ -710,6 +710,19 @@
       'html.zd-m #sidebarNav, html.zd-m #sidebarNav > :not(#main-tab) { flex: 1 1 auto !important;' +
         ' width: auto !important; max-width: none !important; min-width: 0 !important; }',
       'html.zd-m #chatOnboard { display: none !important; }',
+      'html.zd-m.zd-twocol #container { display: flex !important; flex-direction: row !important; overflow: hidden !important; width: 100% !important; height: 100% !important; }',
+      'html.zd-m.zd-twocol #sidebarNav { flex: 0 0 340px !important; width: 340px !important; max-width: 340px !important; min-width: 340px !important; height: 100% !important; border-right: 1px solid rgba(127,127,127,.18) !important; box-sizing: border-box !important; }',
+      'html.zd-m.zd-twocol #sidebarNav > :not(#main-tab) { width: 100% !important; max-width: 100% !important; flex: 1 1 auto !important; }',
+      'html.zd-m.zd-twocol:not(.zd-chat):not(.zd-cdetail) #chatOnboard { display: flex !important; flex: 1 1 0 !important; width: 0 !important; height: 100% !important; min-width: 0 !important; position: relative !important; z-index: 1 !important; }',
+      'html.zd-m.zd-twocol.zd-chat #chatOnboard, html.zd-m.zd-twocol.zd-cdetail #chatOnboard { display: none !important; }',
+      'html.zd-m.zd-twocol #container > main, html.zd-m.zd-twocol #container > span > main, html.zd-m.zd-twocol #container > .contact-pages' +
+        ' { position: relative !important; top: auto !important; left: auto !important; right: auto !important; bottom: auto !important;' +
+        ' flex: 1 1 0 !important; width: 0 !important; height: 100% !important; min-width: 0 !important; max-width: none !important;' +
+        ' z-index: 1 !important; animation: none !important; margin: 0 !important; box-shadow: none !important; }',
+      'html.zd-m.zd-twocol:not(.zd-chat) [data-zd=main]:not(.contact-pages) { display: none !important; }',
+      'html.zd-m.zd-twocol #zd-back, html.zd-m.zd-twocol .conv-back-btn { display: none !important; }',
+      'html.zd-m.zd-twocol [data-zd=header] { padding-left: 16px !important; }',
+      'html.zd-m.zd-twocol #main-tab { left: 0 !important; right: auto !important; width: var(--zd-dock-w, 228px) !important; margin-left: calc((340px - var(--zd-dock-w, 228px)) / 2) !important; margin-right: 0 !important; }',
       // Lời nhắc đồng bộ tin nhắn (banner đầu danh sách, nút cuối danh sách) và thẻ "Đồng bộ ngay / Tải Zalo PC
       // để xem đầy đủ tin nhắn" trong khung chat (nhận ra qua hình hai thiết bị chuyển tin).
       'html.zd-m .sync-v2-banner, html.zd-m .tds-conversation__footer-wrapper:has(.tds-conversation__footer-content-sync-button),' +
@@ -1701,7 +1714,7 @@
     function placeBack() {
       var b = document.getElementById('zd-back');
       var header = M.main ? M.main.querySelector('header') : null;
-      var need = M.chat && !!M.main && !zaloBack();
+      var need = M.chat && !!M.main && !zaloBack() && innerWidth < 640;
       if (header) header.toggleAttribute('data-zd', false);
       if (!need) {
         if (b) b.classList.remove('zd-on');
@@ -1878,7 +1891,8 @@
       // Hộp thoại, trình xem ảnh, menu giữ lâu (#zd-focus) phủ lên dock của trang: dock native (nằm trên) cũng phải ẩn.
       var cover = !!document.querySelector('.zl-modal, .media-viewer, #zd-focus.on, .popover-v3.zd-dock-full');
       var msgItem = items.filter(function (x) { return x && x[4] === 'STR_TAB_MESSAGE'; })[0];
-      var st = JSON.stringify({ v: !!(M.ok && tab && root.classList.contains('zd-m') && !M.chat && !cover && msgItem), w: dockWidth(),
+      var twoCol = innerWidth >= 640;
+      var st = JSON.stringify({ v: !!(M.ok && tab && root.classList.contains('zd-m') && (twoCol || !M.chat) && !cover && msgItem), w: dockWidth(),
         dh: root.classList.contains('zd-dockhide') || searching, t: items, c: dockColor, ic: color,
         ind: root.style.getPropertyValue('--zd-ind') });
       if (st !== lastDock) { lastDock = st; bridge.dockState(st); }
@@ -2128,6 +2142,7 @@
     }
     function start() {
       document.documentElement.classList.add('zd-m');
+      document.documentElement.classList.toggle('zd-twocol', innerWidth >= 640);
       addStyle();
       addShareButton();
       sync();
@@ -2135,7 +2150,14 @@
       setTimeout(function () { dispatchEvent(new Event('resize')); }, 3000);
       new MutationObserver(function (recs) { safe(function () { slidePage(recs); }); quickInfo(); schedule(); })
         .observe(document.documentElement, { childList: true, subtree: true });
-      addEventListener('resize', function () { if (M.chat) placeBack(); });
+      addEventListener('resize', function () {
+        var tc = innerWidth >= 640;
+        document.documentElement.classList.toggle('zd-twocol', tc);
+        if (M.chat) placeBack();
+        safe(sync);
+        if (api.syncDock) api.syncDock();
+        if (api.syncNative) api.syncNative();
+      });
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
     else start();
@@ -2847,12 +2869,14 @@
     api.nativeReady = function (ok) { nativeOk = !!ok; syncNative(); };
     function syncNative() {
       var root = document.documentElement;
+      var twoCol = innerWidth >= 640;
+      root.classList.toggle('zd-twocol', twoCol);
       var msgTab = document.querySelector('#main-tab [data-translate-title=STR_TAB_MESSAGE]');
       // Giữ chế độ native cả khi đang mở chat / hộp thoại (chúng che lên trên): tắt đi thì danh sách web hiện ra phía
       // sau, lúc đóng chat trượt ra sẽ lộ danh sách cũ một nhịp. Chỉ nhường chạm (pass) khi không có gì che.
       var active = nativeOk && M.ok && !M.cdetail && !root.classList.contains('zd-searching') &&
         !!msgTab && msgTab.classList.contains('selected');
-      var pass = active && !M.chat && !document.querySelector('.zl-modal__dialog, body > .popover-v3, .media-viewer');
+      var pass = active && (twoCol || !M.chat) && !document.querySelector('.zl-modal__dialog, body > .popover-v3, .media-viewer');
       if (active !== root.classList.contains('zd-native')) {
         if (active) {
           // Nền danh sách của Zalo (sáng/tối): giữ cho thanh trên, app tô cùng màu cho danh sách native.
@@ -2872,10 +2896,12 @@
       if (!cs || !cs.offsetHeight) cs = document.getElementById('contact-search');
       var hb = cs && active ? Math.max(0, Math.round(cs.getBoundingClientRect().bottom)) : 0;
       var d = tab && active ? tab.getBoundingClientRect() : null;
+      var sb = document.getElementById('sidebarNav');
+      var sw = twoCol ? (sb && sb.offsetWidth ? Math.round(sb.getBoundingClientRect().width) : 340) : 0;
       // dh: dock đang trượt xuống ẩn (html.zd-dockhide) — app cho lớp kính mờ dưới dock trượt theo cùng lúc.
       var lay = JSON.stringify({ on: active, pass: pass, top: hb, dock: d ? [Math.round(d.left), Math.round(d.top), Math.round(d.right),
         Math.round(d.bottom)] : null, dh: root.classList.contains('zd-dockhide'), tabs: filterTabs(), cat: catLabel(), bg: getComputedStyle(root).getPropertyValue('--zd-listbg') || '',
-        fg: nm ? getComputedStyle(nm).color : '', fg2: sub ? getComputedStyle(sub).color : '', me: meInfo() });
+        fg: nm ? getComputedStyle(nm).color : '', fg2: sub ? getComputedStyle(sub).color : '', me: meInfo(), sw: sw });
       if (lay !== lastLayout) { lastLayout = lay; bridge.nativeLayout(lay); }
     }
     api.syncNative = function () { safe(syncNative); };
@@ -2954,6 +2980,7 @@
       new MutationObserver(function () { safe(watchList); safe(syncNative); })
         .observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
       document.addEventListener('transitionend', function () { safe(syncNative); }, true);
+      window.addEventListener('resize', function () { safe(syncNative); });
       // Đổi tab lọc (Ưu tiên / Khác...): dựng lại ngay theo danh sách web mới.
       document.addEventListener('click', function (e) {
         if (e.target && e.target.closest && e.target.closest('.msg-filters-bar, .popover-v3')) {

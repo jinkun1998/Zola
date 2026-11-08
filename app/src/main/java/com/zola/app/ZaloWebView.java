@@ -9,6 +9,7 @@ public final class ZaloWebView extends WebView {
     volatile String lastUrl;
     volatile int[] passExclude;
     volatile int passTop;
+    volatile int passRight;
     final boolean popup;
     ScriptHandler scriptHandler;
     boolean shown;
@@ -17,13 +18,14 @@ public final class ZaloWebView extends WebView {
         super(context);
         this.lastUrl = "";
         this.passTop = -1;
+        this.passRight = 0;
         this.popup = z;
     }
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent motionEvent) {
         int[] iArr;
-        if (motionEvent.getActionMasked() != 0 || this.passTop < 0 || motionEvent.getY() < this.passTop || ((iArr = this.passExclude) != null && motionEvent.getX() >= iArr[0] && motionEvent.getX() <= iArr[2] && motionEvent.getY() >= iArr[1] && motionEvent.getY() <= iArr[3])) {
+        if (motionEvent.getActionMasked() != 0 || this.passTop < 0 || motionEvent.getY() < this.passTop || (this.passRight > 0 && motionEvent.getX() >= this.passRight) || ((iArr = this.passExclude) != null && motionEvent.getX() >= iArr[0] && motionEvent.getX() <= iArr[2] && motionEvent.getY() >= iArr[1] && motionEvent.getY() <= iArr[3])) {
             return super.dispatchTouchEvent(motionEvent);
         }
         return false;
