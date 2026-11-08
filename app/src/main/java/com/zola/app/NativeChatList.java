@@ -665,7 +665,7 @@ public final class NativeChatList extends FrameLayout {
             LinearLayout linearLayout6 = new LinearLayout(context);
             this.tabs = linearLayout6;
             linearLayout5.addView(linearLayout6, new LinearLayout.LayoutParams(-2, -1));
-            linearLayout5.addView(new View(context), new LinearLayout.LayoutParams(0, 1, 1.0f));
+            linearLayout5.addView(new View(context), new LinearLayout.LayoutParams(0, 0, 1.0f));
             LinearLayout linearLayout7 = new LinearLayout(context);
             linearLayout7.setGravity(16);
             linearLayout7.setOnClickListener(new View.OnClickListener() { // from class: com.zola.app.NativeChatList$Header$$ExternalSyntheticLambda2

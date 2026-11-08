@@ -775,7 +775,8 @@
         ' { -webkit-tap-highlight-color: transparent !important; }',
       // Không tô nền khi chạm / rê (trên cảm ứng :hover dính lại): nút thanh trên, thanh lọc, tab — nhìn tự nhiên hơn.
       'html.zd-m .msg-filters-bar, html.zd-m .msg-filters-bar * { -webkit-tap-highlight-color: transparent !important; }',
-      'html.zd-m .msg-filters-bar { border: none !important; border-bottom: none !important; }',
+      'html.zd-m #sidebarNav { border: none !important; border-right: none !important; border-bottom: none !important; box-shadow: none !important; }',
+      'html.zd-m .msg-filters-bar, html.zd-m .msg-filters-bar * { border: none !important; border-bottom: none !important; box-shadow: none !important; }',
       'html.zd-m #contact-search .z--btn--v2, html.zd-m #contact-search .z--btn--v2:hover, html.zd-m #contact-search .z--btn--v2:active,' +
         ' html.zd-m .msg-filters-bar .z--btn--v2, html.zd-m .msg-filters-bar .z--btn--v2:hover, html.zd-m .msg-filters-bar .z--btn--v2:active,' +
         ' html.zd-m .msg-filters-bar .filter-preview-v2, html.zd-m .msg-filters-bar .filter-preview-v2:hover,' +
@@ -912,12 +913,10 @@
       'html.zd-m #main-tab .leftbar-tab .mmi-icon-wr { background-color: transparent !important; }',
       // Dock native đang bật (NativeDock của app vẽ đè lên): dock của trang chỉ còn lớp làm nhòe nền (backdrop-filter).
       // Chỉ khi đã có data-zdg: updateDock bỏ data-zdg để đọc màu dock gốc của Zalo.
-      'html.zd-m.zd-ndock #main-tab[data-zdg] { background: transparent !important;' +
-        ' box-shadow: none !important; pointer-events: none !important; }',
+      'html.zd-m.zd-ndock #main-tab { opacity: 0 !important; background: transparent !important;' +
+        ' box-shadow: none !important; border: none !important; pointer-events: none !important;' +
+        ' -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }',
       'html.zd-m.zd-ndock #main-tab * { visibility: hidden !important; }',
-      // Danh sách native đang hiện: kính mờ nằm trong dock native; lớp nhòe của trang chỉ nhòe trang trong suốt, chồng
-      // thêm một lớp lệch nhịp khi dock trượt — tắt.
-      'html.zd-m.zd-ndock.zd-native #main-tab[data-zdg] { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }',
       '@keyframes zd-fade { from { opacity: 0; } to { opacity: 1; } }',
       'html.zd-m [data-zd=header] { padding-left: 44px !important; box-sizing: border-box !important; }',
       '#zd-back, #zd-info-back { display: none; position: fixed; left: 0; z-index: 16; width: 44px; margin: 0; padding: 0;' +

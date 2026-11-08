@@ -16,6 +16,7 @@ import android.widget.FrameLayout
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
 import android.content.res.Configuration
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewCompat
@@ -89,8 +90,8 @@ class MainActivity : AppCompatActivity() {
             val savedBottom = Prefs.barBottom(this)
             val isSavedLight = Color.luminance(savedTop) > 0.5f
             if (night == isSavedLight) {
-                barTop = if (night) Color.parseColor("#121212") else Color.WHITE
-                barBottom = savedBottom
+                barTop = if (night) Color.parseColor("#22262B") else Color.WHITE
+                barBottom = if (night && (savedBottom == Color.parseColor("#121212") || Color.luminance(savedBottom) > 0.5f)) Color.parseColor("#22262B") else savedBottom
             } else {
                 barTop = savedTop
                 barBottom = savedBottom
@@ -118,21 +119,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupWindow() {
         val w = window
+        WindowCompat.setDecorFitsSystemWindows(w, false)
         if (Build.VERSION.SDK_INT >= 29) {
             w.isNavigationBarContrastEnforced = false
             w.isStatusBarContrastEnforced = false
         }
-        if (Build.VERSION.SDK_INT >= 30) {
-            w.setDecorFitsSystemWindows(false)
-            @Suppress("DEPRECATION")
-            w.statusBarColor = Color.TRANSPARENT
-            @Suppress("DEPRECATION")
-            w.navigationBarColor = Color.TRANSPARENT
-        } else {
-            @Suppress("DEPRECATION")
-            w.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-        }
+        @Suppress("DEPRECATION")
+        w.statusBarColor = Color.TRANSPARENT
+        @Suppress("DEPRECATION")
+        w.navigationBarColor = Color.TRANSPARENT
     }
 
     private fun applyInsets() {
@@ -217,8 +212,10 @@ class MainActivity : AppCompatActivity() {
 
         val isTopLight = Color.luminance(barTop) > 0.5f
         if (night == isTopLight) {
-            barTop = if (night) Color.parseColor("#121212") else Color.WHITE
+            barTop = if (night) Color.parseColor("#22262B") else Color.WHITE
+            barBottom = if (night && (barBottom == Color.parseColor("#121212") || Color.luminance(barBottom) > 0.5f)) Color.parseColor("#22262B") else barBottom
             Prefs.put(this, "bar_top", barTop)
+            Prefs.put(this, "bar_bottom", barBottom)
         }
 
         applyBarColors()
@@ -426,11 +423,11 @@ class MainActivity : AppCompatActivity() {
     fun onSystemBars(top: String?, bottom: String?) {
         try {
             val night = isNightMode()
-            val defaultColor = if (night) Color.parseColor("#121212") else Color.WHITE
+            val defaultColor = if (night) Color.parseColor("#22262B") else Color.WHITE
             val parsedTop = if (top != null) Color.parseColor(top) else defaultColor
             val parsedBottom = if (bottom != null) Color.parseColor(bottom) else defaultColor
-            val topColor = if (night && Color.luminance(parsedTop) > 0.5f) Color.parseColor("#121212") else parsedTop
-            val bottomColor = parsedBottom
+            val topColor = if (night && Color.luminance(parsedTop) > 0.5f) Color.parseColor("#22262B") else parsedTop
+            val bottomColor = if (night && (parsedBottom == Color.parseColor("#121212") || Color.luminance(parsedBottom) > 0.5f)) Color.parseColor("#22262B") else parsedBottom
             setSystemBarColors(topColor, bottomColor)
         } catch (_: Exception) {}
     }
