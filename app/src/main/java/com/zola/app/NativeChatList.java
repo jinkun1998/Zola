@@ -139,9 +139,11 @@ public final class NativeChatList extends FrameLayout {
         Adapter adapter = new Adapter();
         this.adapter = adapter;
         this.items = new ArrayList();
-        this.bg = -1;
-        this.fg = -16245958;
-        this.fg2 = -10851967;
+        boolean dark = (context.getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        this.bg = dark ? 0xFF22262B : 0xFFFFFFFF;
+        this.fg = dark ? -1644309 : -16245958;
+        this.fg2 = dark ? -6642510 : -10851967;
+        setBackgroundColor(this.bg);
         this.tabSel = -1;
         this.tabNames = "";
         this.slideRun = this::runTabSlide;
@@ -988,8 +990,10 @@ public final class NativeChatList extends FrameLayout {
             this.booting = false;
             this.bootEnding = false;
             this.endingBoot = false;
-            setTranslationZ(0.0f);
-            setVisibility(8);
+            if (this.columnWidth <= 0) {
+                setTranslationZ(0.0f);
+                setVisibility(8);
+            }
             ZaloWebView zaloWebView = this.lastWv;
             if (zaloWebView != null) {
                 zaloWebView.setBackgroundColor(MainActivity.pageBottomColor());
@@ -1020,12 +1024,14 @@ public final class NativeChatList extends FrameLayout {
         if (this.booting) {
             this.booting = false;
             this.bootEnding = false;
-            setTranslationZ(0.0f);
+            if (this.columnWidth <= 0) {
+                setTranslationZ(0.0f);
+            }
             WebViewHolder.evalMain("window.__zw&&window.__zw.connReport&&window.__zw.connReport()");
             String str = this.lastLayout;
             if (str != null) {
                 setLayout(str, this.lastWv);
-            } else {
+            } else if (this.columnWidth <= 0) {
                 setVisibility(8);
             }
             if (this.pendingOpen != null) {
@@ -1246,7 +1252,8 @@ public final class NativeChatList extends FrameLayout {
             }
             int sw = jSONObject.optInt("sw", 0);
             setColumnWidthPx(sw > 0 ? dp(sw) : 0);
-            setVisibility(z ? 0 : 8);
+            setVisibility((z || this.columnWidth > 0) ? 0 : 8);
+            if (this.columnWidth > 0) setTranslationZ(1000.0f);
             int[] iArr = null;
             placeGlass(z ? jSONArrayOptJSONArray2 : null, jSONObject.optBoolean("dh"));
             if (zaloWebView != null) {
@@ -1345,8 +1352,18 @@ public final class NativeChatList extends FrameLayout {
     }
 
     private static int parseCss(String str) {
-        Matcher matcher = Pattern.compile("rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)").matcher(str);
+        if (str == null || str.isEmpty() || "transparent".equalsIgnoreCase(str)) {
+            return 0;
+        }
+        Matcher matcher = Pattern.compile("rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)(?:,\\s*([\\d.]+))?").matcher(str);
         if (matcher.find()) {
+            String alphaStr = matcher.group(4);
+            if (alphaStr != null) {
+                try {
+                    float a = Float.parseFloat(alphaStr);
+                    if (a <= 0.05f) return 0;
+                } catch (Exception ignored) {}
+            }
             return Color.rgb(Integer.parseInt(matcher.group(1)), Integer.parseInt(matcher.group(2)), Integer.parseInt(matcher.group(3)));
         }
         return 0;
@@ -1355,6 +1372,9 @@ public final class NativeChatList extends FrameLayout {
     private void applyColors(int i, int i2, int i3) {
         if (i != 0) {
             this.bg = i;
+        } else if (this.bg == 0 || this.bg == -1) {
+            boolean dark = (getContext().getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+            this.bg = dark ? 0xFF22262B : 0xFFFFFFFF;
         }
         boolean z = Color.luminance(this.bg) < 0.4f;
         if (i2 == 0) {

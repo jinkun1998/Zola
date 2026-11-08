@@ -18,6 +18,8 @@
   var cfg = window.__ZW_CFG || {};
   // Mã bí mật cho ZaloBridge (JsBridge.ok): giữ trong closure, gỡ khỏi window để không nằm lại trên trang.
   var BT = String(cfg.bt || '');
+  var cfgWide = !!cfg.wide;
+  function isWide() { return cfgWide || innerWidth >= 640; }
   try { delete window.__ZW_CFG; } catch (e) { /* ignore */ }
 
   // Cầu nối Android (window.ZaloBridge) có thể chưa sẵn sàng đúng lúc script này chạy (tùy bản
@@ -598,7 +600,7 @@
         try { b.click(); } finally { passBack = false; }
       }
     }
-    if (!mobile || !m || leaving || innerWidth >= 640) { go(); return true; }
+    if (!mobile || !m || leaving || isWide()) { go(); return true; }
     // Trượt khung ra trước (CSS .zd-leave) rồi mới quay lại danh sách.
     leaving = true;
     m.classList.add('zd-leave');
@@ -717,7 +719,8 @@
       'html.zd-m.zd-twocol #sidebarNav, html.zd-m.zd-twocol #sidebarNav > :not(#main-tab), html.zd-m.zd-twocol #sidebarNav > :not(#main-tab) > * { background: transparent !important; }',
       'html.zd-m.zd-twocol #sidebarNav > :not(#main-tab) > :not(#contact-search) { opacity: 0 !important; pointer-events: none !important; }',
       'html.zd-m.zd-twocol #contact-search, html.zd-m.zd-twocol #sidebarNav .msg-filters-bar { opacity: 0 !important; }',
-      'html.zd-m.zd-twocol #app-theme-overlay, html.zd-m.zd-twocol .theme-transition-overlay, html.zd-m.zd-twocol .draggable, html.zd-m.zd-twocol [class*="loading"]:not(#container *) { left: 340px !important; width: calc(100% - 340px) !important; max-width: calc(100% - 340px) !important; }',
+      'html.zd-m.zd-twocol #loading-page, html.zd-m.zd-twocol [id*="loading"], html.zd-m.zd-twocol #app-theme-overlay, html.zd-m.zd-twocol .theme-transition-overlay, html.zd-m.zd-twocol .draggable, html.zd-m.zd-twocol [class*="loading"]:not(#container *) { position: fixed !important; left: 340px !important; top: 0 !important; right: 0 !important; bottom: 0 !important; width: calc(100% - 340px) !important; max-width: calc(100% - 340px) !important; min-width: 0 !important; height: 100% !important; box-sizing: border-box !important; overflow: hidden !important; }',
+      'html.zd-m.zd-twocol #loading-page > img:first-child { left: 0 !important; right: 0 !important; margin-left: auto !important; margin-right: auto !important; }',
       'html.zd-m.zd-twocol:not(.zd-chat):not(.zd-cdetail) #chatOnboard { display: flex !important; flex: 1 1 0 !important; width: 0 !important; height: 100% !important; min-width: 0 !important; position: relative !important; z-index: 1 !important; }',
       'html.zd-m.zd-twocol.zd-chat #chatOnboard, html.zd-m.zd-twocol.zd-cdetail #chatOnboard { display: none !important; }',
       'html.zd-m.zd-twocol #container > main, html.zd-m.zd-twocol #container > span > main, html.zd-m.zd-twocol #container > .contact-pages' +
@@ -1673,10 +1676,11 @@
 
     function addStyle() {
       if (addStyle.done) return;
+      var cssText = Array.isArray(CSS) ? CSS.join('\n') : CSS;
       try {
         // Stylesheet dựng bằng CSSOM: không bị chặn bởi Content-Security-Policy của trang.
         var sheet = new CSSStyleSheet();
-        sheet.replaceSync(CSS);
+        sheet.replaceSync(cssText);
         document.adoptedStyleSheets = document.adoptedStyleSheets.concat([sheet]);
         addStyle.done = true;
         return;
@@ -1684,13 +1688,34 @@
       if (!document.head) return;
       var s = document.createElement('style');
       s.id = 'zd-mobile-css';
-      s.textContent = CSS;
+      s.textContent = cssText;
       document.head.appendChild(s);
       addStyle.done = true;
     }
     document.documentElement.classList.add('zd-m');
-    document.documentElement.classList.toggle('zd-twocol', innerWidth >= 640);
+    document.documentElement.classList.toggle('zd-twocol', isWide());
     addStyle();
+    function fixLoadingPage() {
+      if (!isWide()) return;
+      var lp = document.getElementById('loading-page');
+      if (lp) {
+        lp.style.setProperty('position', 'fixed', 'important');
+        lp.style.setProperty('left', '340px', 'important');
+        lp.style.setProperty('top', '0', 'important');
+        lp.style.setProperty('right', '0', 'important');
+        lp.style.setProperty('bottom', '0', 'important');
+        lp.style.setProperty('width', 'calc(100% - 340px)', 'important');
+        lp.style.setProperty('max-width', 'calc(100% - 340px)', 'important');
+        var img = lp.querySelector('img');
+        if (img) {
+          img.style.setProperty('left', '0', 'important');
+          img.style.setProperty('right', '0', 'important');
+          img.style.setProperty('margin-left', 'auto', 'important');
+          img.style.setProperty('margin-right', 'auto', 'important');
+        }
+      }
+    }
+    new MutationObserver(function () { fixLoadingPage(); }).observe(document.documentElement, { childList: true, subtree: true });
 
     /** Tạo nút ← của app (gắn vào body, vị trí đặt bằng style top/height). */
     function backButton(id, onClick) {
@@ -1722,7 +1747,7 @@
     function placeBack() {
       var b = document.getElementById('zd-back');
       var header = M.main ? M.main.querySelector('header') : null;
-      var need = M.chat && !!M.main && !zaloBack() && innerWidth < 640;
+      var need = M.chat && !!M.main && !zaloBack() && !isWide();
       if (header) header.toggleAttribute('data-zd', false);
       if (!need) {
         if (b) b.classList.remove('zd-on');
@@ -1899,7 +1924,7 @@
       // Hộp thoại, trình xem ảnh, menu giữ lâu (#zd-focus) phủ lên dock của trang: dock native (nằm trên) cũng phải ẩn.
       var cover = !!document.querySelector('.zl-modal, .media-viewer, #zd-focus.on, .popover-v3.zd-dock-full');
       var msgItem = items.filter(function (x) { return x && x[4] === 'STR_TAB_MESSAGE'; })[0];
-      var twoCol = innerWidth >= 640;
+      var twoCol = isWide();
       var st = JSON.stringify({ v: !!(M.ok && tab && root.classList.contains('zd-m') && (twoCol || !M.chat) && !cover && msgItem), w: dockWidth(),
         dh: root.classList.contains('zd-dockhide') || searching, t: items, c: dockColor, ic: color,
         ind: root.style.getPropertyValue('--zd-ind') });
@@ -2150,7 +2175,7 @@
     }
     function start() {
       document.documentElement.classList.add('zd-m');
-      document.documentElement.classList.toggle('zd-twocol', innerWidth >= 640);
+      document.documentElement.classList.toggle('zd-twocol', isWide());
       addStyle();
       addShareButton();
       sync();
@@ -2159,7 +2184,7 @@
       new MutationObserver(function (recs) { safe(function () { slidePage(recs); }); quickInfo(); schedule(); })
         .observe(document.documentElement, { childList: true, subtree: true });
       addEventListener('resize', function () {
-        var tc = innerWidth >= 640;
+        var tc = isWide();
         document.documentElement.classList.toggle('zd-twocol', tc);
         if (M.chat) placeBack();
         safe(sync);
@@ -2877,7 +2902,7 @@
     api.nativeReady = function (ok) { nativeOk = !!ok; syncNative(); };
     function syncNative() {
       var root = document.documentElement;
-      var twoCol = innerWidth >= 640;
+      var twoCol = isWide();
       root.classList.toggle('zd-twocol', twoCol);
       var msgTab = document.querySelector('#main-tab [data-translate-title=STR_TAB_MESSAGE]');
       // Giữ chế độ native cả khi đang mở chat / hộp thoại (chúng che lên trên): tắt đi thì danh sách web hiện ra phía
@@ -2889,7 +2914,8 @@
         if (active) {
           // Nền danh sách của Zalo (sáng/tối): giữ cho thanh trên, app tô cùng màu cho danh sách native.
           var col = document.querySelector('#sidebarNav > :not(#main-tab)');
-          if (col) root.style.setProperty('--zd-listbg', getComputedStyle(col).backgroundColor);
+          var colBg = col ? getComputedStyle(col).backgroundColor : '';
+          if (colBg && colBg !== 'rgba(0, 0, 0, 0)' && colBg !== 'transparent') root.style.setProperty('--zd-listbg', colBg);
         }
         root.classList.toggle('zd-native', active);
       }

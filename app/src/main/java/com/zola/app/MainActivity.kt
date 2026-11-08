@@ -231,6 +231,12 @@ class MainActivity : AppCompatActivity() {
         nativeList.setColumnWidthPx(colW)
         nativeDock.setColumnWidth(colW)
         webView.passRight = colW
+        if (isWide) {
+            nativeList.translationZ = 1000f
+            webView.setBackgroundColor(0)
+        } else {
+            nativeList.translationZ = 0f
+        }
         webView.evaluateJavascript("window.__zw && window.__zw.syncNative && window.__zw.syncNative(); window.__zw && window.__zw.syncDock && window.__zw.syncDock();", null)
     }
 
@@ -249,7 +255,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadScript() {
         val shimSource = assets.open("shim.js").bufferedReader().use { it.readText() }
-        fullScript = "if(!window.__zw)window.__ZW_CFG={bt:\"$bridgeToken\",viewportWidth:0,ringDetect:false,mobile:true,dockOpacity:100,dockAutoHide:false,dockBottom:0,dockCloud:false,dockTools:false,nativeList:true};\n$shimSource"
+        val isWide = resources.configuration.screenWidthDp >= 600
+        fullScript = "if(!window.__zw)window.__ZW_CFG={bt:\"$bridgeToken\",viewportWidth:0,ringDetect:false,mobile:true,dockOpacity:100,dockAutoHide:false,dockBottom:0,dockCloud:false,dockTools:false,nativeList:true,wide:$isWide};\n$shimSource"
     }
 
     private fun setupNativeUI() {
@@ -410,6 +417,7 @@ class MainActivity : AppCompatActivity() {
         webContainer.addView(webView, match())
         webContainer.addView(nativeDock, nativeDock.params())
         if (nativeList.columnWidth > 0) {
+            nativeList.translationZ = 1000f
             webView.passRight = nativeList.columnWidth
             webView.setBackgroundColor(0)
         }
