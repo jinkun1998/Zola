@@ -2643,7 +2643,7 @@
         }
         var order = webOrder();
         if (order && order.length) {
-          // Đúng tab lọc đang chọn trên thanh của Zalo, theo thứ tự của Zalo.
+          // Đúng tab lọc đang chọn trên thanh của Zalo, theo thứ tự của Zalo (không tải hội thoại khác vào ưu tiên).
           var byId = {}, seen = {};
           list.forEach(function (it) { byId[it.id] = it; });
           var ordered = [];
@@ -2653,13 +2653,14 @@
               seen[id] = true;
             }
           });
-          // Nối các hội thoại còn lại (nhóm, hội thoại tab khác...), sắp xếp theo ghim và thời gian
-          var rest = list.filter(function (it) { return !seen[it.id]; });
-          rest.sort(function (a, b) { return (b.p - a.p) || (b.t - a.t); });
-          list = ordered.concat(rest);
+          list = ordered;
         } else if (order && !order.length) {
           list = [];
         } else {
+          if (Date.now() - pageStart < 25000) {
+            scheduleBuild(400);
+            return;
+          }
           list.sort(function (a, b) { return (b.p - a.p) || (b.t - a.t); });
         }
         document.documentElement.classList.toggle('zd-nempty', !!order && !order.length);
