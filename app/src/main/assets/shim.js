@@ -2564,15 +2564,20 @@
           });
         }
         var previews = {}, unreads = {}, pinned = {};
-        (z.preview && z.preview.getAllPreviewsSync ? z.preview.getAllPreviewsSync() : []).forEach(function (p) { previews[p.convId] = p; });
+        var previewList = (z.preview && z.preview.getAllPreviewsSync ? z.preview.getAllPreviewsSync() : []);
+        if (!previewList.length && Date.now() - pageStart < 25000) {
+          scheduleBuild(800);
+          return;
+        }
+        previewList.forEach(function (p) { previews[p.convId] = p; });
         (z.unread && z.unread.getAllUnreadsSync ? z.unread.getAllUnreadsSync() : []).forEach(function (u) { unreads[u.convId] = u; });
         try {
           (z.pin && z.pin.getAllPinnedConversationsSync ? z.pin.getAllPinnedConversationsSync() : []).forEach(function (p, i) {
             pinned[typeof p === 'string' ? p : (p.convId || p.id || p.userId)] = 1000 - i;
           });
         } catch (e) { /* ignore */ }
-        // Hội thoại ảo của Zalo (vd. "stranger_box" — hộp tin người lạ, mã không phải số): web chỉ hiện khi có tin.
-        convs = convs.filter(function (c) { return c.isGroup || /^\d+$/.test(c.userId) || previews[c.userId]; });
+        // Chỉ giữ hội thoại có tin nhắn
+        convs = convs.filter(function (c) { return !!previews[c.userId]; });
         var groupStale = false;
         var list = convs.map(function (c) {
           var id = c.userId, p = previews[id], u = unreads[id] || {}, info = names[id];
@@ -2626,6 +2631,9 @@
             t: p ? +p.messageTime || 0 : 0, m: text, ic: icon, miss: miss,
             u: (u.smsUnreadCount || 0) + (u.strangerUnreadCount || 0), at: u.mentionUnreadCount || 0,
             ud: u.smsUnreadNotCount || 0, p: pinned[id] || 0, mu: muted, me: id === me };
+        });
+        list = list.filter(function (it) {
+          return it.u > 0 || it.t > 0 || (it.m && it.m !== 'Chưa có tin nhắn');
         });
         // Có nhóm mới / vừa đổi tên: lấy lại danh sách nhóm (ảnh ghép, số người) sau ~10 giây, không đợi đủ 60 giây.
         if (groupStale && Date.now() - namesAt > 10000 && Date.now() - groupRetryAt > 10000) {

@@ -453,6 +453,9 @@ public final class NativeChatList extends FrameLayout {
                 item2.icon = jSONObject.optString("ic");
                 item2.missCall = jSONObject.optBoolean("miss");
                 item2.total = jSONObject.optInt("tm");
+                if (item2.unread <= 0 && (item2.time <= 0 || "Chưa có tin nhắn".equals(item2.text))) {
+                    continue;
+                }
                 JSONArray jSONArrayOptJSONArray = jSONObject.optJSONArray("ms");
                 item2.members = new String[jSONArrayOptJSONArray == null ? 0 : jSONArrayOptJSONArray.length()];
                 for (int i2 = 0; i2 < item2.members.length; i2++) {
