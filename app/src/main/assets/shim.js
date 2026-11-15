@@ -884,17 +884,7 @@
       '#zd-focus-scrim { position: fixed; inset: 0; z-index: 9990; background: rgba(0,0,0,.45); pointer-events: none;' +
         ' opacity: 0; transition: opacity .24s cubic-bezier(.2,.9,.25,1); }',
       '#zd-focus-scrim.on { opacity: 1; }',
-      // Thẻ đứng yên tại chỗ dòng được giữ, chỉ "lún" nhẹ khi đang focus (như app Zalo) và trở lại khi bỏ focus.
-      '#zd-focus { position: fixed; left: 0; width: 100vw; z-index: 9991; pointer-events: none; will-change: transform;' +
-        ' transition: transform .2s cubic-bezier(.2,.9,.25,1), top .26s cubic-bezier(.2,.9,.25,1); }',
-      '#zd-focus.on { transform: scale(.97); }',
-      // Nền thẻ cố định, cách mép màn hình 4px (avatar cách mép 16px nên còn khoảng thở trong thẻ); chỉ hiện / mờ dần.
-      '#zd-focus > .bg { position: absolute; top: 0; bottom: 0; left: 4px; right: 4px; border-radius: 16px;' +
-        ' box-shadow: 0 6px 24px rgba(0,0,0,.18);' +
-        ' background: linear-gradient(var(--zd-elev, transparent), var(--zd-elev, transparent)), var(--zd-listbg, #fff);' +
-        ' opacity: 0; transition: opacity .18s cubic-bezier(.2,.9,.25,1); }',
-      '#zd-focus.on > .bg { opacity: 1; }',
-      '#zd-focus > img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }',
+      '#zd-focus { display: none !important; }',
       // Ô emoji trạng thái đè lên ảnh đại diện: chạm xuyên qua để mở menu tài khoản.
       'html.zd-m #main-tab .zavatar__avatar-emoji-status { pointer-events: none !important; }',
       'html.zd-m #main-tab [data-translate-title=KEY_NAME_SEND2ME] { order: 4; }',
@@ -1914,7 +1904,7 @@
       });
       var searching = root.classList.contains('zd-searching');
       // Hộp thoại, trình xem ảnh, menu giữ lâu (#zd-focus) phủ lên dock của trang: dock native (nằm trên) cũng phải ẩn.
-      var cover = !!document.querySelector('.zl-modal, .media-viewer, #zd-focus.on, .popover-v3.zd-dock-full');
+      var cover = !!document.querySelector('.zl-modal, .media-viewer, #zd-focus-scrim.on, .popover-v3.zd-dock-full');
       var msgItem = items.filter(function (x) { return x && x[4] === 'STR_TAB_MESSAGE'; })[0];
       var twoCol = isWide();
       var st = JSON.stringify({ v: !!(M.ok && tab && root.classList.contains('zd-m') && (twoCol || !M.chat) && !cover && msgItem), w: dockWidth(),
@@ -3269,35 +3259,23 @@
      * ảnh chụp dòng (data URL) để dựng thẻ nổi kiểu "focus" của app Zalo.
      */
     var focus = null;
-    function focusStart(y, h, shot) {
+    function focusStart(y, h) {
       focusEnd(true);
-      var root = document.documentElement, bg = getComputedStyle(root).getPropertyValue('--zd-listbg');
-      var m = /(\d+),\s*(\d+),\s*(\d+)/.exec(bg || ''), dark = m && (+m[1] * 299 + +m[2] * 587 + +m[3] * 114) / 1000 < 110;
-      root.style.setProperty('--zd-elev', dark ? 'rgba(255,255,255,.09)' : 'transparent');      var s = document.createElement('div');
+      var s = document.createElement('div');
       s.id = 'zd-focus-scrim';
-      var c = document.createElement('div');
-      c.id = 'zd-focus';
-      c.style.top = y + 'px';
-      c.style.height = h + 'px';
-      c.innerHTML = '<div class="bg"></div>' + (shot ? '<img alt="">' : '');
-      if (shot) c.lastChild.src = shot;
       document.body.appendChild(s);
-      document.body.appendChild(c);
-      c.getBoundingClientRect(); // trạng thái đầu (dòng nằm phẳng) trước khi chuyển sang thẻ nổi
+      s.getBoundingClientRect();
       s.classList.add('on');
-      c.classList.add('on');
-      focus = { s: s, c: c, y: y, h: h };
+      focus = { s: s, y: y, h: h };
     }
-    /** Menu đóng (mục 13 gọi khi Zalo gỡ menu): thẻ hạ về thành dòng, nền phủ mờ đi. */
+    /** Menu đóng: nền phủ mờ đi rồi gỡ. */
     function focusEnd(now) {
       if (!focus) return;
       var f = focus;
       focus = null;
-      if (now) { f.s.remove(); f.c.remove(); return; }
+      if (now) { f.s.remove(); return; }
       f.s.classList.remove('on');
-      f.c.classList.remove('on');
-      f.c.style.top = f.y + 'px';
-      setTimeout(function () { f.s.remove(); f.c.remove(); }, 280);
+      setTimeout(function () { f.s.remove(); }, 280);
     }
     api.convFocusEnd = function () { safe(function () { focusEnd(false); }); };
 
@@ -3318,11 +3296,11 @@
       return null;
     }
 
-    api.convMenu = function (id, idx, y, h, shot) {
+    api.convMenu = function (id, idx, y, h) {
       id = String(id);
       y = +y || 0;
       h = +h || 78;
-      safe(function () { focusStart(y, h, shot); });
+      safe(function () { focusStart(y, h); });
       var z = findZalo(), cc = convController(), conv = null;
       try { conv = z && z.info && z.info.getConvByIdSync ? z.info.getConvByIdSync(id) : null; } catch (e) { /* ignore */ }
       if (cc && conv) {
@@ -3373,17 +3351,14 @@
         pop.classList.add('zd-conv-pop');
         // Menu ngay dưới thẻ; không đủ chỗ thì lên trên thẻ; cả hai đều không đủ thì đẩy thẻ lên cho menu vừa bên
         // dưới (như app Zalo). Nền phủ che cả dock nên dùng hết chiều cao màn hình.
-        var vh = window.innerHeight, ph = pop.offsetHeight, gap = 6, card = top, t;
+        var vh = window.innerHeight, ph = pop.offsetHeight, gap = 6, t;
         if (top + h + gap + ph <= vh - 12) t = top + h + gap;
         else if (top - gap - ph >= 12) t = top - gap - ph;
         else {
-          card = Math.max(12, vh - 12 - ph - gap - h);
-          t = card + h + gap;
+          t = Math.max(12, vh - 12 - ph);
         }
-        if (focus && card !== top) focus.c.style.top = card + 'px';
         pop.style.setProperty('top', Math.round(t) + 'px', 'important');
-        // Góc phóng của hiệu ứng mở (mục 13): mép menu sát thẻ.
-        pop.style.setProperty('--zd-po', (t < card ? 'bottom' : 'top') + ' left');
+        pop.style.setProperty('--zd-po', (t < top ? 'bottom' : 'top') + ' left');
         if (api.trackMenus) api.trackMenus();
         if (M.sync) M.sync();
         safe(syncNative);

@@ -303,7 +303,7 @@ public final class NativeChatList extends FrameLayout {
             int iRound = Math.round((iArr[1] - iArr2[1]) / this.density);
             int iRound2 = Math.round(view.getHeight() / this.density);
             view.setPressed(false);
-            WebViewHolder.evalMain("window.__zw&&window.__zw.convMenu&&window.__zw.convMenu(" + JSONObject.quote(item.id) + "," + i + "," + iRound + "," + iRound2 + "," + JSONObject.quote(snapshot(view)) + ")");
+            WebViewHolder.evalMain("window.__zw&&window.__zw.convMenu&&window.__zw.convMenu(" + JSONObject.quote(item.id) + "," + i + "," + iRound + "," + iRound2 + ")");
         }
         return true;
     }
@@ -311,21 +311,6 @@ public final class NativeChatList extends FrameLayout {
     /* JADX INFO: Access modifiers changed from: private */
     public int dp(float f) {
         return Math.round(f * this.density);
-    }
-
-    private static String snapshot(View view) {
-        if (view.getWidth() > 0 && view.getHeight() > 0) {
-            try {
-                Bitmap bitmapCreateBitmap = Bitmap.createBitmap(view.getWidth(), view.getHeight(), Bitmap.Config.ARGB_8888);
-                view.draw(new Canvas(bitmapCreateBitmap));
-                ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-                bitmapCreateBitmap.compress(Bitmap.CompressFormat.PNG, 100, byteArrayOutputStream);
-                bitmapCreateBitmap.recycle();
-                return "data:image/png;base64," + Base64.encodeToString(byteArrayOutputStream.toByteArray(), 2);
-            } catch (OutOfMemoryError | RuntimeException unused) {
-            }
-        }
-        return "";
     }
 
     void setData(String str) {
@@ -1291,7 +1276,7 @@ public final class NativeChatList extends FrameLayout {
             boolean isWide = getResources().getConfiguration().screenWidthDp >= 600;
             setColumnWidthPx((isWide && sw > 0) ? dp(sw) : 0);
             setVisibility((z || this.columnWidth > 0) ? 0 : 8);
-            if (this.columnWidth > 0) setTranslationZ(1000.0f);
+            if (this.columnWidth > 0) setTranslationZ(z2 ? 1000.0f : 0.0f);
             int[] iArr = null;
             placeGlass(z ? jSONArrayOptJSONArray2 : null, jSONObject.optBoolean("dh"));
             if (zaloWebView != null) {
