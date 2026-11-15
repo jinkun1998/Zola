@@ -2962,9 +2962,12 @@
           if (u.convId) unreads[u.convId] = u;
         });
         try {
-          (z.pin && z.pin.getAllPinnedConversationsSync ? z.pin.getAllPinnedConversationsSync() : []).forEach(function (p, i) {
-            pinned[typeof p === 'string' ? p : (p.convId || p.id || p.userId)] = 1000 - i;
-          });
+          (z.pin && z.pin.getAllPinnedConversationsSync ? z.pin.getAllPinnedConversationsSync() : [])
+            .slice()
+            .sort(function (a, b) { return (b.priority || 0) - (a.priority || 0); })
+            .forEach(function (p, i) {
+              pinned[typeof p === 'string' ? p : (p.convId || p.id || p.userId)] = 1000 - i;
+            });
         } catch (e) { /* ignore */ }
         fetchAllLastMessages(z, convs);
         // Chỉ giữ hội thoại có tin nhắn hoặc lịch sử
@@ -3396,6 +3399,104 @@
       return null;
     }
 
+    // ponytail: ceiling is priority timestamp swap + Zalo DB/cloud sync; upgrade path: drag-and-drop touch sorter inside NativeChatList.
+    api.reorderPin = function (id, dir) {
+      var z = findZalo();
+      if (!z || !z.pin || !z.pin.data) return false;
+      var sid = String(id);
+      var items = Array.from(z.pin.data.values())
+        .filter(function (it) { return it && (it.tab === 0 || it.tab === undefined); })
+        .sort(function (a, b) { return (b.priority || 0) - (a.priority || 0); });
+      var idx = -1;
+      for (var i = 0; i < items.length; i++) {
+        var pid = String(items[i].id || items[i].convId || "");
+        if (pid === sid || pid === ("g" + sid) || ("g" + pid) === sid) {
+          idx = i;
+          break;
+        }
+      }
+      if (idx < 0) return false;
+      var targetIdx = idx + dir;
+      if (targetIdx < 0 || targetIdx >= items.length) return false;
+      var temp = items[idx];
+      items[idx] = items[targetIdx];
+      items[targetIdx] = temp;
+      var now = Date.now();
+      for (var j = 0; j < items.length; j++) {
+        items[j].priority = now + (items.length - j) * 100;
+      }
+      z.pin.data.clear();
+      items.forEach(function (it) { z.pin.data.set(it.id, it); });
+      try {
+        if (typeof z.pin._broadcastEvent === "function") z.pin._broadcastEvent("change_pin_conv", items);
+        if (typeof z.pin._updateInDB === "function") z.pin._updateInDB();
+        if (typeof z.pin._sendToServer === "function") z.pin._sendToServer();
+      } catch (e) { log("reorderPin sync error: " + e); }
+      scheduleBuild(0);
+      return true;
+    };
+
+    api.showPinArrangeModal = function () {
+      var old = document.getElementById("zd-pin-modal");
+      if (old) old.remove();
+      var z = findZalo();
+      if (!z || !z.pin || !z.pin.data) return;
+
+      function renderItems(container) {
+        container.innerHTML = "";
+        var items = Array.from(z.pin.data.values())
+          .filter(function (it) { return it && (it.tab === 0 || it.tab === undefined); })
+          .sort(function (a, b) { return (b.priority || 0) - (a.priority || 0); });
+        if (!items.length) {
+          container.innerHTML = '<div style="padding:16px;text-align:center;color:#888;">Không có hội thoại đã ghim</div>';
+          return;
+        }
+        items.forEach(function (it, idx) {
+          var id = String(it.id || it.convId || "");
+          var cInfo = (names && names[id]) || (names && names[id.replace(/^g/, "")]) || (names && names["g" + id]);
+          var name = (cInfo && cInfo.n) || id;
+          var row = document.createElement("div");
+          row.style.cssText = "display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid rgba(128,128,128,0.15);gap:12px;";
+          row.innerHTML = '<span style="font-size:14px;font-weight:600;width:24px;color:#888;text-align:center;">' + (idx + 1) + '</span>' +
+            '<span style="flex:1;font-size:15px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + name + '</span>' +
+            '<button class="zd-up-btn" style="background:none;border:1px solid rgba(128,128,128,0.25);border-radius:6px;width:32px;height:32px;font-size:14px;cursor:pointer;' + (idx === 0 ? 'opacity:0.3;pointer-events:none;' : '') + '">▲</button>' +
+            '<button class="zd-dn-btn" style="background:none;border:1px solid rgba(128,128,128,0.25);border-radius:6px;width:32px;height:32px;font-size:14px;cursor:pointer;' + (idx === items.length - 1 ? 'opacity:0.3;pointer-events:none;' : '') + '">▼</button>';
+          row.querySelector(".zd-up-btn").addEventListener("click", function () {
+            api.reorderPin(id, -1);
+            renderItems(container);
+          });
+          row.querySelector(".zd-dn-btn").addEventListener("click", function () {
+            api.reorderPin(id, 1);
+            renderItems(container);
+          });
+          container.appendChild(row);
+        });
+      }
+
+      var modal = document.createElement("div");
+      modal.id = "zd-pin-modal";
+      modal.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);";
+      var card = document.createElement("div");
+      card.style.cssText = "background:var(--surface-background,#fff);color:var(--text-primary,#000);border-radius:16px;width:90%;max-width:380px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 12px 36px rgba(0,0,0,0.3);overflow:hidden;";
+      card.innerHTML = '<div style="padding:16px 20px;font-size:17px;font-weight:600;border-bottom:1px solid rgba(128,128,128,0.15);display:flex;align-items:center;justify-content:space-between;">' +
+        '<span>Sắp xếp hội thoại đã ghim</span>' +
+        '<button id="zd-pin-close" style="background:none;border:none;font-size:20px;cursor:pointer;color:inherit;padding:4px 8px;">✕</button>' +
+        '</div>' +
+        '<div id="zd-pin-list" style="flex:1;overflow-y:auto;max-height:55vh;"></div>' +
+        '<div style="padding:12px 16px;border-top:1px solid rgba(128,128,128,0.15);text-align:right;">' +
+        '<button id="zd-pin-done" style="background:var(--blue-500,#0068ff);color:#fff;border:none;border-radius:8px;padding:8px 20px;font-weight:600;font-size:14px;cursor:pointer;">Xong</button>' +
+        '</div>';
+      modal.appendChild(card);
+      document.body.appendChild(modal);
+
+      renderItems(card.querySelector("#zd-pin-list"));
+
+      function closeModal() { modal.remove(); }
+      modal.addEventListener("click", function (e) { if (e.target === modal) closeModal(); });
+      card.querySelector("#zd-pin-close").addEventListener("click", closeModal);
+      card.querySelector("#zd-pin-done").addEventListener("click", closeModal);
+    };
+
     api.convMenu = function (id, idx, y, h) {
       id = String(id);
       y = +y || 0;
@@ -3456,6 +3557,61 @@
         }).pop();
         if (!pop) { if (n < 20) setTimeout(function () { placeMenu(top, n + 1); }, 30); else focusEnd(false); return; }
         pop.classList.add('zd-conv-pop');
+
+        var z = findZalo();
+        if (z && z.pin && typeof z.pin.getAllPinnedConversationsSync === "function") {
+          var pinList = z.pin.getAllPinnedConversationsSync()
+            .filter(function (it) { return it && (it.tab === 0 || it.tab === undefined); })
+            .sort(function (a, b) { return (b.priority || 0) - (a.priority || 0); });
+          var pinIdx = -1;
+          for (var pi = 0; pi < pinList.length; pi++) {
+            var pid = String(pinList[pi].id || pinList[pi].convId || "");
+            if (pid === id || pid === ("g" + id) || ("g" + pid) === id) {
+              pinIdx = pi;
+              break;
+            }
+          }
+          if (pinIdx >= 0 && pinList.length > 1 && !pop.querySelector(".zd-pin-move")) {
+            var body = pop.querySelector(".zmenu-body") || pop;
+            var unpinBtn = Array.from(pop.querySelectorAll(".zmenu-item")).find(function (el) {
+              return el.textContent && el.textContent.indexOf("ghim") >= 0;
+            });
+            var insertTarget = unpinBtn ? unpinBtn.nextSibling : body.firstChild;
+
+            function addBtn(label, iconClass, dir) {
+              var item = document.createElement("div");
+              item.className = "zmenu-item --NORMAL md zd-pin-move";
+              item.innerHTML = '<div class="truncate flx-1">' + label + '</div><div class="margin-left-24 fa ' + iconClass + '" style="width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:16px;"></div>';
+              item.addEventListener("click", function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                api.reorderPin(id, dir);
+                safe(function () { focusEnd(false); pop.remove(); });
+              }, true);
+              body.insertBefore(item, insertTarget);
+            }
+
+            if (pinIdx < pinList.length - 1) {
+              addBtn("Chuyển xuống dưới", "fa-solid-down", 1);
+            }
+            if (pinIdx > 0) {
+              addBtn("Chuyển lên trên", "fa-solid-up", -1);
+            }
+            if (pinList.length > 2) {
+              var dlgBtn = document.createElement("div");
+              dlgBtn.className = "zmenu-item --NORMAL md zd-pin-move";
+              dlgBtn.innerHTML = '<div class="truncate flx-1">Sắp xếp ghim...</div><div class="margin-left-24 fa fa-sort-kb" style="width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:16px;"></div>';
+              dlgBtn.addEventListener("click", function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                safe(function () { focusEnd(false); pop.remove(); });
+                api.showPinArrangeModal();
+              }, true);
+              body.insertBefore(dlgBtn, insertTarget);
+            }
+          }
+        }
+
         // Menu ngay dưới thẻ; không đủ chỗ thì lên trên thẻ; cả hai đều không đủ thì đẩy thẻ lên cho menu vừa bên
         // dưới (như app Zalo). Nền phủ che cả dock nên dùng hết chiều cao màn hình.
         var vh = window.innerHeight, ph = pop.offsetHeight, gap = 6, t;
