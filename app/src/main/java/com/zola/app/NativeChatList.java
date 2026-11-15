@@ -477,7 +477,7 @@ public final class NativeChatList extends FrameLayout {
                 item2.icon = jSONObject.optString("ic");
                 item2.missCall = jSONObject.optBoolean("miss");
                 item2.total = jSONObject.optInt("tm");
-                if (item2.unread <= 0 && (item2.time <= 0 || "Chưa có tin nhắn".equals(item2.text))) {
+                if (isEmptyConversation(item2.unread, item2.text)) {
                     continue;
                 }
                 JSONArray jSONArrayOptJSONArray = jSONObject.optJSONArray("ms");
@@ -542,11 +542,10 @@ public final class NativeChatList extends FrameLayout {
             this.booting = true;
             try {
                 JSONObject jSONObject = new JSONObject(Prefs.sp(getContext()).getString(BOOT_LAYOUT, "{}"));
+                boolean isWide = getResources().getConfiguration().screenWidthDp >= 600;
                 int sw = jSONObject.optInt("sw", 0);
-                if (sw > 0) {
-                    setColumnWidthPx(dp(sw));
-                } else if (getResources().getConfiguration().screenWidthDp >= 600) {
-                    setColumnWidthPx(dp(340.0f));
+                if (isWide) {
+                    setColumnWidthPx(sw > 0 ? dp(sw) : dp(340.0f));
                 } else {
                     setColumnWidthPx(0);
                 }
@@ -719,12 +718,31 @@ public final class NativeChatList extends FrameLayout {
             linearLayout7.addView(textViewView, layoutParams4);
             TextView textViewView2 = ZaloIcons.view(context, "solid-more", NativeChatList.this.zoom * 16.0f, NativeChatList.this.fg);
             this.more = textViewView2;
-            textViewView2.setOnClickListener(new View.OnClickListener() { // from class: com.zola.app.NativeChatList$Header$$ExternalSyntheticLambda3
+            textViewView2.setOnClickListener(new View.OnClickListener() { // from class: com.zola.app.NativeChatList$Header$ExternalSyntheticLambda3
                 @Override // android.view.View.OnClickListener
                 public final void onClick(View view2) {
                     Header.this.lambda$new$3(view2);
                 }
             });
+            View.OnLongClickListener syncListener = new View.OnLongClickListener() {
+                @Override
+                public boolean onLongClick(View view2) {
+                    new android.app.AlertDialog.Builder(getContext())
+                        .setTitle("Đồng bộ tin nhắn")
+                        .setMessage("Đồng bộ toàn bộ lịch sử tin nhắn từ điện thoại?\n(Yêu cầu xác nhận trên ứng dụng Zalo điện thoại)")
+                        .setPositiveButton("Đồng bộ", new android.content.DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(android.content.DialogInterface dialog, int which) {
+                                WebViewHolder.evalMain("window.__zw && window.__zw.syncAll && window.__zw.syncAll()");
+                            }
+                        })
+                        .setNegativeButton("Hủy", null)
+                        .show();
+                    return true;
+                }
+            };
+            textViewView2.setOnLongClickListener(syncListener);
+            linearLayout3.setOnLongClickListener(syncListener);
             LinearLayout.LayoutParams layoutParams5 = new LinearLayout.LayoutParams(NativeChatList.this.dp(24.0f), NativeChatList.this.dp(24.0f));
             layoutParams5.leftMargin = NativeChatList.this.dp(8.0f);
             layoutParams5.rightMargin = NativeChatList.this.dp(9.0f);
@@ -786,20 +804,21 @@ public final class NativeChatList extends FrameLayout {
             if (str == null || str.isEmpty()) {
                 return;
             }
-            if (str.equals(this.me) && str2.equals(this.meAv)) {
+            if (str.equals(this.me) && (str2 != null && str2.equals(this.meAv))) {
                 return;
             }
             this.me = str;
-            this.meAv = str2;
+            this.meAv = str2 != null ? str2 : "";
             this.name.setText(str);
             this.av.setImageBitmap(Avatars.placeholder(str, false, NativeChatList.this.dp(36.0f)));
-            if (str2.isEmpty()) {
+            if (this.meAv.isEmpty()) {
                 return;
             }
-            Avatars.load(getContext(), str2, NativeChatList.this.dp(36.0f), new Avatars.Done() { // from class: com.zola.app.NativeChatList$Header$$ExternalSyntheticLambda4
-                @Override // com.zola.app.NativeChatList.Avatars.Done
+            final String avUrl = this.meAv;
+            Avatars.load(getContext(), avUrl, NativeChatList.this.dp(36.0f), new Avatars.Done() {
+                @Override
                 public final void loaded(Bitmap bitmap) {
-                    Header.this.lambda$setMe$4(str2, bitmap);
+                    Header.this.lambda$setMe$4(avUrl, bitmap);
                 }
             });
         }
@@ -820,16 +839,21 @@ public final class NativeChatList extends FrameLayout {
                 return;
             }
             this.conn = str;
-            boolean zEquals = "wait".equals(str);
+            boolean isSync = str.startsWith("sync:");
+            boolean zEquals = "wait".equals(str) || isSync;
             GradientDrawable gradientDrawable = this.dotBg;
-            if ("on".equals(str)) {
+            if (isSync) {
+                i = -16750337;
+            } else if ("on".equals(str)) {
                 i = -13589396;
             } else {
                 i = zEquals ? -678620 : -1750963;
             }
             gradientDrawable.setColor(i);
             TextView textView = this.status;
-            if ("on".equals(str)) {
+            if (isSync) {
+                str2 = str.substring(5);
+            } else if ("on".equals(str)) {
                 str2 = "Đã kết nối";
             } else {
                 str2 = zEquals ? "Đang kết nối" : "Mất kết nối";
@@ -1264,7 +1288,8 @@ public final class NativeChatList extends FrameLayout {
                 this.shownAt = SystemClock.uptimeMillis();
             }
             int sw = jSONObject.optInt("sw", 0);
-            setColumnWidthPx(sw > 0 ? dp(sw) : 0);
+            boolean isWide = getResources().getConfiguration().screenWidthDp >= 600;
+            setColumnWidthPx((isWide && sw > 0) ? dp(sw) : 0);
             setVisibility((z || this.columnWidth > 0) ? 0 : 8);
             if (this.columnWidth > 0) setTranslationZ(1000.0f);
             int[] iArr = null;
@@ -1327,8 +1352,9 @@ public final class NativeChatList extends FrameLayout {
     }
 
     private void animateTop(int i) {
-        if (i > this.fullTop) {
-            this.fullTop = i;
+        int target = Math.max(dp(96.0f), i);
+        if (target > this.fullTop) {
+            this.fullTop = target;
             FrameLayout.LayoutParams layoutParams = (FrameLayout.LayoutParams) this.listView.getLayoutParams();
             layoutParams.bottomMargin = -this.fullTop;
             this.listView.setLayoutParams(layoutParams);
@@ -1336,27 +1362,21 @@ public final class NativeChatList extends FrameLayout {
             int i2 = this.fullTop;
             listView.setPadding(0, i2, 0, dp(Prefs.dockBottom(getContext()) + 64) + i2);
         }
-        if (i == this.topPx) {
+        if (target == this.topPx && this.header.getTranslationY() == 0.0f) {
             return;
         }
-        this.topPx = i;
-        float f = i - this.fullTop;
-        float fMax = Math.max(-dp(64.0f), Math.min(0, i - (this.header.getHeight() > 0 ? this.header.getHeight() : dp(96.0f))));
+        this.topPx = target;
         this.listView.animate().cancel();
         this.header.animate().cancel();
-        if (getVisibility() != 0) {
-            this.listView.setTranslationY(f);
-            this.header.setTranslationY(fMax);
-        } else {
-            PathInterpolator pathInterpolator = new PathInterpolator(0.22f, 0.61f, 0.36f, 1.0f);
-            this.listView.animate().translationY(f).setDuration(420L).setUpdateListener(new ValueAnimator.AnimatorUpdateListener() { // from class: com.zola.app.NativeChatList$$ExternalSyntheticLambda6
-                @Override // android.animation.ValueAnimator.AnimatorUpdateListener
-                public final void onAnimationUpdate(ValueAnimator valueAnimator) {
-                    NativeChatList.this.lambda$animateTop$5(valueAnimator);
-                }
-            }).setInterpolator(pathInterpolator).start();
-            this.header.animate().translationY(fMax).setDuration(420L).setInterpolator(pathInterpolator).start();
-        }
+        this.listView.setTranslationY(0.0f);
+        this.header.setTranslationY(0.0f);
+    }
+
+    public static boolean isEmptyConversation(int unread, String text) {
+        if (unread > 0) return false;
+        if (text == null) return true;
+        String trimmed = text.trim();
+        return trimmed.isEmpty() || "Chưa có tin nhắn".equals(trimmed);
     }
 
     /* JADX INFO: Access modifiers changed from: private */

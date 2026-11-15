@@ -2,19 +2,12 @@ package com.zola.app;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.app.ProgressDialog;
-import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
-import android.os.Build;
-import android.provider.Settings;
 import android.widget.Toast;
-import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -22,6 +15,7 @@ import java.net.URL;
 
 public final class Updater {
     private static final String API_LATEST = "https://api.github.com/repos/jinkun1998/Zola/releases/latest";
+    private static final String RELEASES_PAGE = "https://github.com/jinkun1998/Zola/releases";
 
     private Updater() {}
 
@@ -57,121 +51,27 @@ public final class Updater {
                     return;
                 }
 
-                JSONArray assets = release.optJSONArray("assets");
-                String apkUrl = null;
-                if (assets != null) {
-                    for (int i = 0; i < assets.length(); i++) {
-                        JSONObject asset = assets.optJSONObject(i);
-                        if (asset != null) {
-                            String name = asset.optString("name", "");
-                            if (name.endsWith(".apk")) {
-                                apkUrl = asset.optString("browser_download_url");
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                if (apkUrl == null || apkUrl.isEmpty()) {
-                    if (manual) toast(activity, "Bản mới " + tagName + " chưa có file APK đính kèm");
-                    return;
-                }
-
-                final String finalUrl = apkUrl;
-                final String body = release.optString("body", "");
-                activity.runOnUiThread(() -> showUpdateDialog(activity, tagName, body, finalUrl));
+                String url = release.optString("html_url", RELEASES_PAGE);
+                String body = release.optString("body", "");
+                activity.runOnUiThread(() -> showUpdateDialog(activity, tagName, body, url));
             } catch (Exception e) {
                 if (manual) toast(activity, "Không thể kiểm tra cập nhật: " + e.getMessage());
             }
         });
     }
 
-    private static void showUpdateDialog(Activity activity, String tagName, String body, String apkUrl) {
+    private static void showUpdateDialog(Activity activity, String tagName, String body, String url) {
         if (activity.isFinishing() || activity.isDestroyed()) return;
-        String msg = (body.isEmpty() ? "" : body + "\n\n") + "Tải về và cài đặt ngay?";
+        String msg = (body.isEmpty() ? "" : body + "\n\n") + "Mở GitHub để tải bản cập nhật?";
         new AlertDialog.Builder(activity)
                 .setTitle("Bản cập nhật mới: " + tagName)
                 .setMessage(msg)
-                .setPositiveButton("Cập nhật", (d, w) -> downloadAndInstall(activity, apkUrl, tagName))
+                .setPositiveButton("Mở GitHub", (d, w) -> {
+                    Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                    activity.startActivity(intent);
+                })
                 .setNegativeButton("Để sau", null)
                 .show();
-    }
-
-    private static void downloadAndInstall(Activity activity, String apkUrl, String tagName) {
-        if (activity.isFinishing() || activity.isDestroyed()) return;
-
-        ProgressDialog progress = new ProgressDialog(activity);
-        progress.setTitle("Đang tải Zola " + tagName);
-        progress.setMessage("Vui lòng đợi...");
-        progress.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
-        progress.setMax(100);
-        progress.setCancelable(false);
-        progress.show();
-
-        App.IO.execute(() -> {
-            File apkFile = null;
-            try {
-                HttpURLConnection conn = openConnection(apkUrl);
-                int totalLen = conn.getContentLength();
-
-                File dir = ShareFiles.dir(activity);
-                dir.mkdirs();
-                apkFile = new File(dir, "zola-update.apk");
-
-                try (InputStream in = conn.getInputStream();
-                     FileOutputStream out = new FileOutputStream(apkFile)) {
-                    byte[] buf = new byte[8192];
-                    int read;
-                    long done = 0;
-                    while ((read = in.read(buf)) != -1) {
-                        out.write(buf, 0, read);
-                        done += read;
-                        if (totalLen > 0) {
-                            int pct = (int) (done * 100 / totalLen);
-                            activity.runOnUiThread(() -> progress.setProgress(pct));
-                        }
-                    }
-                    out.flush();
-                }
-
-                final File fileToInstall = apkFile;
-                activity.runOnUiThread(() -> {
-                    try { progress.dismiss(); } catch (Exception ignored) {}
-                    installApk(activity, fileToInstall);
-                });
-            } catch (Exception e) {
-                activity.runOnUiThread(() -> {
-                    try { progress.dismiss(); } catch (Exception ignored) {}
-                    Toast.makeText(activity, "Lỗi tải cập nhật: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                });
-            }
-        });
-    }
-
-    public static void installApk(Context context, File apkFile) {
-        if (context == null || apkFile == null || !apkFile.exists()) return;
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.getPackageManager().canRequestPackageInstalls()) {
-            Toast.makeText(context, "Vui lòng cho phép Zola cài đặt ứng dụng", Toast.LENGTH_LONG).show();
-            Intent permIntent = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + context.getPackageName()));
-            if (!(context instanceof Activity)) permIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            context.startActivity(permIntent);
-        }
-
-        Uri apkUri = Uri.parse("content://" + ShareFiles.AUTHORITY + "/" + apkFile.getName());
-        Intent intent = new Intent(Intent.ACTION_VIEW);
-        intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
-        intent.setClipData(ClipData.newRawUri(apkFile.getName(), apkUri));
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        if (!(context instanceof Activity)) {
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        }
-
-        try {
-            context.startActivity(intent);
-        } catch (Exception e) {
-            Toast.makeText(context, "Không thể mở bộ cài đặt: " + e.getMessage(), Toast.LENGTH_LONG).show();
-        }
     }
 
     static boolean isNewer(String remote, String current) {

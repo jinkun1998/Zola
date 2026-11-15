@@ -253,7 +253,7 @@ class MainActivity : AppCompatActivity() {
             welcomeView.applyColors(night)
             updateWelcomeVisibility()
         }
-        webView.evaluateJavascript("window.__zw && window.__zw.syncNative && window.__zw.syncNative(); window.__zw && window.__zw.syncDock && window.__zw.syncDock();", null)
+        webView.evaluateJavascript("window.__zw && window.__zw.setWide && window.__zw.setWide($isWide); window.__zw && window.__zw.syncNative && window.__zw.syncNative(); window.__zw && window.__zw.syncDock && window.__zw.syncDock();", null)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

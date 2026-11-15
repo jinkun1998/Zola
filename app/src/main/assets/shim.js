@@ -18,8 +18,8 @@
   var cfg = window.__ZW_CFG || {};
   // Mã bí mật cho ZaloBridge (JsBridge.ok): giữ trong closure, gỡ khỏi window để không nằm lại trên trang.
   var BT = String(cfg.bt || '');
-  var cfgWide = !!cfg.wide;
-  function isWide() { return cfgWide || innerWidth >= 640; }
+  var cfgWide = typeof cfg.wide === 'boolean' ? cfg.wide : null;
+  function isWide() { return typeof cfgWide === 'boolean' ? cfgWide : (innerWidth >= 600); }
   try { delete window.__ZW_CFG; } catch (e) { /* ignore */ }
 
   // Cầu nối Android (window.ZaloBridge) có thể chưa sẵn sàng đúng lúc script này chạy (tùy bản
@@ -83,6 +83,16 @@
 
   var api = {};
   Object.defineProperty(window, '__zw', { value: api, configurable: false, enumerable: false, writable: false });
+  api.setWide = function (w) {
+    cfgWide = !!w;
+    var root = document.documentElement;
+    var tc = isWide();
+    root.classList.toggle('zd-twocol', tc);
+    if (M.chat) placeBack();
+    safe(sync);
+    if (api.syncDock) api.syncDock();
+    if (api.syncNative) api.syncNative();
+  };
 
   // ------------------------------------------------------------------ 1. Ẩn/hiện trang
   var forcedHidden = null;
@@ -708,7 +718,8 @@
 
   if (mobile) safe(function () {
     var CSS = [
-      'html.zd-m, html.zd-m body, html.zd-m #container { min-width: 0 !important; overflow-x: hidden !important; }',
+      'html.zd-m, html.zd-m body, html.zd-m #container { min-width: 0 !important; overflow: hidden !important; overflow-x: hidden !important; height: 100% !important; }',
+      'html.zd-m .conv-list-compact { height: 100% !important; max-height: 100% !important; min-height: 0 !important; }',
       'html.zd-m #sidebarNav, html.zd-m #sidebarNav > :not(#main-tab) { flex: 1 1 auto !important;' +
         ' width: auto !important; max-width: none !important; min-width: 0 !important; }',
       'html.zd-m #chatOnboard { display: none !important; }',
@@ -750,6 +761,9 @@
       'html.zd-m .system-banner__item__wrapper:has([data-translate-inner="STR_NOTI_DOWNLOAD_BUTTON"]),' +
         ' html.zd-m .system-banner__container:has(> .system-banner__item__wrapper:only-child' +
         ' [data-translate-inner="STR_NOTI_DOWNLOAD_BUTTON"]) { display: none !important; }',
+      'html.zd-m .system-banner__container, html.zd-m .view-notice-msg-content__suggest-pc,' +
+        ' html.zd-m .conversation-list__banner__full-mode, html.zd-m .tds-conversation__footer-wrapper,' +
+        ' html.zd-m [class*="suggest-pc"], html.zd-m [class*="download-pc"] { display: none !important; }',
       // Thanh biểu tượng (#main-tab) thành dock ở đáy: Danh bạ, Tin nhắn, My Documents (avatar, Cài đặt lên thanh trên).
       // Chỉ đổi CSS, không di chuyển phần tử của Zalo; các lớp bọc thành display: contents để xếp lại bằng order.
       // Dock nổi: thanh bo tròn gọn ở giữa (3 nút, rộng 228px), cách đáy theo Cài đặt (--zd-dock-bottom), nội dung cuộn bên dưới. Nền kính mờ (data-zdg, xem updateDock):
@@ -2162,6 +2176,7 @@
       new MutationObserver(function (recs) { safe(function () { slidePage(recs); }); quickInfo(); schedule(); })
         .observe(document.documentElement, { childList: true, subtree: true });
       addEventListener('resize', function () {
+        cfgWide = innerWidth >= 600;
         var tc = isWide();
         document.documentElement.classList.toggle('zd-twocol', tc);
         if (M.chat) placeBack();
@@ -2358,6 +2373,8 @@
      * mất kết nối đã lâu mà Zalo chưa nối lại được.
      */
     api.connState = function () {
+      var sp = api.syncProgress ? api.syncProgress() : null;
+      if (sp) return 'sync:' + sp;
       if (openCount() > 0) return 'on';
       if (!navigator.onLine) return 'off';
       if (socks.some(function (x) { return x.readyState === 0; })) return 'wait';
@@ -2471,6 +2488,21 @@
         if (!found.tokens && ex.PreviewDataManager && ex.UnreadDataManager) found.tokens = ex;
         if (!found.convCtl && ex.ConversationController && ex.ConversationController.service) found.convCtl = ex.ConversationController;
         if (!found.clc && ex.ConvListController) found.clc = ex.ConvListController;
+        if (!found.syncCtrl && ex.SyncController && ex.SyncController.service) found.syncCtrl = ex.SyncController;
+        if (!found.syncCfg && ex.SyncConfigService && ex.SyncConfigService.service) found.syncCfg = ex.SyncConfigService;
+        if (!found.pcMgr) {
+          for (var pck in ex) {
+            if (ex[pck] && typeof ex[pck].GetManager === "function") {
+              try {
+                var pm = ex[pck].GetManager();
+                if (pm && typeof pm.isRolledConversation === "function") {
+                  found.pcMgr = pm;
+                  break;
+                }
+              } catch (e) {}
+            }
+          }
+        }
         var d = ex.default;
         if (!found.storage && d && typeof d.getConversations === 'function' && typeof d.getFriends === 'function') found.storage = d;
         if (!found.i18n && d && typeof d.str === 'function' && typeof d.currentLanguage === 'function') found.i18n = d;
@@ -2478,25 +2510,156 @@
         if (!found.alias && d && typeof d.getAliasName === 'function' && typeof d.getAllAlias === 'function') found.alias = d;
         // Hồ sơ mọi tài khoản đã gặp, cả người lạ và Official Account (không có trong getFriends, tin cuối không có dName).
         if (!found.profile && d && typeof d.getProfileFriendByIdSync === 'function') found.profile = d;
+        if (!found.arch && d && typeof d.isArchivedChat === 'function') found.arch = d;
+        if (!found.arch && ex.a && typeof ex.a.isArchivedChat === 'function') found.arch = ex.a;
         // Hàm Zalo dùng để ra dòng tin cuối ở danh sách (chữ, "Sticker", tên file, tin hệ thống...).
         if (!found.fmt) {
           for (var n in ex) {
             if (typeof ex[n] !== 'function') continue;
             var src = Function.prototype.toString.call(ex[n]);
-            if (src.length < 20000 && src.indexOf('computedIcon') >= 0 && src.indexOf('isSystemicMessage') >= 0) { found.fmt = ex[n]; break; }
+            if (src.length < 20000 && src.indexOf('computedIcon') >= 0 && src.indexOf('isSystemicMessage') >= 0) {
+              var rawFmt = ex[n];
+              found.fmt = function (t, n) {
+                var res = rawFmt(t, n);
+                if (res && res.message && (res.message.indexOf('chưa hỗ trợ') >= 0 || res.message.indexOf('STR_MSG_NOT_SUPPORTED') >= 0)) {
+                  var fb = (t && (t.title || t.description || (t.params && (t.params.title || t.params.description || t.params.content)) || (t.message && (t.message.title || t.message.description || t.message.text)))) || '';
+                  if (fb) res.message = '[' + fb + ']';
+                }
+                return res;
+              };
+              break;
+            }
           }
         }
       }
       if (!found.container || !found.tokens || !found.storage) return null;
       var C = found.container, T = found.tokens;
       function res(t) { try { return C.resolve(t); } catch (e) { return null; } }
+      if (found.pcMgr) {
+        var pm = found.pcMgr, pmp = Object.getPrototypeOf(pm);
+        var pcfns = [
+          "isRolledConversation", "isDisplayedBannerDownloadPCSuggestion",
+          "isDisplayedConversationFooter", "isDisplayedGlobalSearchFooter",
+          "isDisplayedSearchInConversationFooter", "isDisplayedMilestoneInPreviewMedia",
+          "isDisplayedSuggestionInMediaList", "isDisplayedTransferModal",
+          "isValidForTransferMessages", "isValidSupportDownloadPC",
+          "canShowFirstTimeLoginTransferMessageModal", "isDisplayedBubbleInfoEcard"
+        ];
+        pcfns.forEach(function (fn) {
+          try {
+            pm[fn] = function () { return false; };
+            if (pmp) pmp[fn] = function () { return false; };
+          } catch (e) {}
+        });
+      }
+      var sSync = found.syncCtrl ? res(found.syncCtrl) : null;
+      var sCfg = found.syncCfg ? res(found.syncCfg) : null;
+      if (sCfg) {
+        var cfgProto = Object.getPrototypeOf(Object.getPrototypeOf(sCfg)) || Object.getPrototypeOf(sCfg);
+        if (cfgProto && !cfgProto.__zdFullSync) {
+          cfgProto.__zdFullSync = true;
+          cfgProto.getThresholdRanges = function () {
+            return {
+              conversationsList: { fromTs: 0, toTs: Number.MAX_SAFE_INTEGER },
+              previewAndRecentMessages: { fromTs: 0, toTs: Number.MAX_SAFE_INTEGER },
+              otherMessages: { fromTs: 0, toTs: Number.MAX_SAFE_INTEGER }
+            };
+          };
+          cfgProto.createThresholdRange = function () {
+            return { fromTs: 0, toTs: Number.MAX_SAFE_INTEGER };
+          };
+          cfgProto.getSyncConvListMaxRange = function () { return -1; };
+          cfgProto.getSyncLastAndRecentChatMaxRange = function () { return -1; };
+          cfgProto.getSyncAllRemainingMsgMaxRange = function () { return -1; };
+        }
+      }
+      if (sSync) {
+        var sp = Object.getPrototypeOf(sSync);
+        if (sp && !sp.__zdFullManualSync) {
+          sp.__zdFullManualSync = true;
+          var origManual = sp.manualSync;
+          sp.manualSync = function (src) {
+            if (this.storage && this.storage.syncState) {
+              try {
+                this.storage.syncState.setLastSyncConvSuccessTs(0);
+                this.storage.syncState.setLastSyncSuccessTs(0);
+              } catch (e) {}
+            }
+            if (api.connReport) api.connReport();
+            return origManual.apply(this, arguments);
+          };
+          var origSuccess = sp.handleSyncSuccess;
+          if (typeof origSuccess === 'function') {
+            sp.handleSyncSuccess = function () {
+              var res = origSuccess.apply(this, arguments);
+              safe(function () {
+                populateAllConvs(Z);
+                scheduleBuild(100);
+                if (api.connReport) api.connReport();
+              });
+              return res;
+            };
+          }
+          var origSyncing = sSync.handleSyncing;
+          if (typeof origSyncing === 'function') {
+            sSync.handleSyncing = function () {
+              var res = origSyncing.apply(this, arguments);
+              if (api.connReport) api.connReport();
+              return res;
+            };
+          }
+        }
+      }
       Z = { st: found.storage, preview: res(T.PreviewDataManager), unread: res(T.UnreadDataManager),
         pin: res(T.PinDataManager), mute: res(T.MuteDataManager), conv: found.convCtl ? res(found.convCtl) : null, clc: found.clc ? res(found.clc) : null,
         info: T.ConvInfoDataManager ? res(T.ConvInfoDataManager) : null, // tên / ảnh cả người lạ (không trong danh bạ)
-        fmt: found.fmt, i18n: found.i18n, alias: found.alias || null, profile: found.profile || null };
+        sync: sSync, syncCfg: sCfg,
+        convDM: (T.ConvDataManager && res(T.ConvDataManager)) || (T.ConversationDataManager && res(T.ConversationDataManager)) || null, fmt: found.fmt, i18n: found.i18n, alias: found.alias || null, profile: found.profile || null, arch: found.arch || null };
       diag('native list: zalo services ' + (Z.preview && Z.unread ? 'found' : 'partial') + (Z.fmt ? '' : ', no preview formatter'));
       return Z;
     }
+
+    function populateAllConvs(z) {
+      if (!z || !z.clc || !z.clc.listRawAll || !z.info || !z.info.getAllConvSync) return;
+      var all = z.info.getAllConvSync();
+      var raw = z.clc.listRawAll;
+      var added = 0;
+      for (var i = 0; i < all.length; i++) {
+        var c = all[i];
+        var id = String(c.userId || c.id || c.convId || (c.grid ? 'g' + c.grid : ''));
+        if (!id) continue;
+        var hasAction = (c.lastActionTime > 0) || (c.infoCheckSearch && c.infoCheckSearch.lastMessageTime > 0);
+        var hasPreview = z.preview && (z.preview.getPreviewByIDSync(id) || (id.indexOf('g') === 0 ? z.preview.getPreviewByIDSync(id.slice(1)) : z.preview.getPreviewByIDSync('g' + id)));
+        var u = z.unread && z.unread.getUnreadByIDSync && z.unread.getUnreadByIDSync(id);
+        var hasLm = !!cachedLastMsg[id];
+        var hasUnread = u && (((u.smsUnreadCount || 0) + (u.strangerUnreadCount || 0)) > 0);
+        if (hasAction || hasPreview || hasLm || hasUnread || (c.numMsg > 0)) {
+          if (!raw.has(id)) {
+            raw.add(id);
+            added++;
+          }
+        }
+      }
+      if (added > 0 && typeof z.clc.rebuildList === 'function') {
+        z.clc.rebuildList();
+      }
+    }
+    api.syncProgress = function () {
+      var z = findZalo();
+      if (!z || !z.sync || !z.sync.machine) return null;
+      try {
+        if (!z.sync.machine.isRunning()) return null;
+        var b = document.querySelector('.sync-v2-banner');
+        var pt = b && b.querySelector('.progress-text');
+        var p = pt ? pt.innerText.trim() : '';
+        if (p) return 'Đang đồng bộ ' + p;
+        var pct = z.sync.ui && z.sync.ui.state && z.sync.ui.state.totalProgress;
+        if (typeof pct === 'number' && pct > 0) return 'Đang đồng bộ ' + Math.round(pct) + '%';
+        return 'Đang đồng bộ...';
+      } catch (e) {
+        return null;
+      }
+    };
 
     /** Một dòng tin xem trước, như Zalo Web: dùng hàm định dạng của Zalo; không có thì đoán theo loại. */
     /** Bảng tên gợi nhớ (mã người → tên), nạp lại mỗi lần lấy lại danh bạ. Dạng giá trị tùy bản Zalo: chuỗi / đối tượng. */
@@ -2526,26 +2689,100 @@
             s = Z.i18n.str(s);
             (f.systemicMessageArgs || []).forEach(function (a, i) { s = s.split('%' + (i + 1) + '$s').join(a); });
           }
-          if (s) return { t: zEmoji(String(s).replace(/\s+/g, ' ').slice(0, 200)), ic: f.icon || '', miss: !!f.isMisscall };
+          var ic = f.computedIcon || f.icon || f.subIcon || '';
+          if (s) return { t: zEmoji(String(s).replace(/\s+/g, ' ').slice(0, 200)), ic: ic, miss: !!f.isMisscall };
         } catch (e) { /* dùng cách đoán bên dưới */ }
       }
-      return { t: zEmoji(guessText(p)), ic: '', miss: false };
+      return guessText(p);
     }
     function guessText(p) {
-      var m = p.message, t = '';
-      if (typeof m === 'string') t = m;
+      var m = p && p.message, t = '', ic = '';
+      if (typeof (p && p.plainText) === 'string' && p.plainText) t = p.plainText;
+      else if (typeof (p && p.preview) === 'string' && p.preview) t = p.preview;
+      else if (typeof m === 'string') t = m;
       else if (m && typeof m === 'object') {
-        if (m.catId || m.stickerId) t = '[Sticker]';
+        if (m.catId || m.stickerId) { t = '[Sticker]'; ic = 'sticker'; }
         else if (m.title) t = m.title;
-        else if (m.thumb || /\.(jpe?g|png|gif|webp)/i.test(m.href || '')) t = '[Hình ảnh]';
-        else if (m.href) t = '[Liên kết]';
+        else if (m.thumb || /\.(jpe?g|png|gif|webp)/i.test(m.href || '') || m.url) { t = '[Hình ảnh]'; ic = 'picture'; }
+        else if (m.href) { t = '[Liên kết]'; ic = 'link'; }
+      }
+      if (!t || t === '[Tin nhắn]') {
+        var mt = String((p && (p.msgType || p.type)) || '').toLowerCase();
+        if (/photo|image|thumb/.test(mt)) { t = '[Hình ảnh]'; ic = 'picture'; }
+        else if (/video/.test(mt)) { t = '[Video]'; ic = 'video'; }
+        else if (/sticker|doodle/.test(mt)) { t = '[Sticker]'; ic = 'sticker'; }
+        else if (/voice|audio/.test(mt)) { t = '[Tin nhắn thoại]'; ic = 'voice'; }
+        else if (/file|doc/.test(mt)) { t = '[Tệp tin]'; ic = 'file'; }
+        else if (/link/.test(mt)) { t = '[Liên kết]'; ic = 'link'; }
+        else if (/call/.test(mt)) { t = '[Cuộc gọi]'; ic = 'Call'; }
+      }
+      if (!ic) {
+        if (t === '[Hình ảnh]') ic = 'picture';
+        else if (t === '[Video]') ic = 'video';
+        else if (t === '[Sticker]') ic = 'sticker';
+        else if (t === '[Tệp tin]') ic = 'file';
+        else if (t === '[Liên kết]') ic = 'link';
+        else if (t === '[Tin nhắn thoại]') ic = 'voice';
+        else if (t === '[Cuộc gọi]') ic = 'Call';
       }
       if (!t) t = '[Tin nhắn]';
-      return t.replace(/\s+/g, ' ').slice(0, 200);
+      return { t: zEmoji(t.replace(/\s+/g, ' ').slice(0, 200)), ic: ic, miss: false };
     }
+
+    function findConvDataManager() {
+      var z = findZalo();
+      if (z && z.convDM) return z.convDM;
+      if (z && z.clc && z.clc.convDataManager) return z.clc.convDataManager;
+      var cc = convController();
+      if (cc && cc.ctl && cc.ctl.convDataManager) return cc.ctl.convDataManager;
+      var l = document.getElementById('conversationListId');
+      var fk = l && Object.keys(l).filter(function (k) { return k.indexOf('__react') === 0; })[0];
+      for (var f = fk && l[fk], i = 0; f && i < 10; f = f.return, i++) {
+        var p = f.memoizedProps;
+        if (p) {
+          if (p.convDataManager) return p.convDataManager;
+          if (p.convlistController && p.convlistController.convDataManager) return p.convlistController.convDataManager;
+          if (p.controller && p.controller.convDataManager) return p.controller.convDataManager;
+        }
+      }
+      return null;
+    }
+
 
     var pageStart = Date.now();
     var lastSent = '', building = false, names = {}, namesAt = 0, groupRetryAt = 0, cachedGroups = []; // tên + ảnh bạn bè / nhóm
+    var cachedLastMsg = {}, lastMsgFetching = false;
+    function fetchAllLastMessages(z, convs) {
+      if (lastMsgFetching || !z || !z.st || typeof z.st.getLastMsgValid !== 'function') return;
+      var missing = convs.filter(function (c) {
+        var cid = c && (c.userId || c.id || c.convId || (c.grid ? 'g' + c.grid : ''));
+        return cid && cachedLastMsg[cid] === undefined;
+      });
+      if (!missing.length) return;
+      lastMsgFetching = true;
+      var idx = 0;
+      function nextChunk() {
+        if (idx >= missing.length) {
+          lastMsgFetching = false;
+          scheduleBuild(100);
+          return;
+        }
+        var chunk = missing.slice(idx, idx + 40);
+        idx += 40;
+        Promise.all(chunk.map(function (c) {
+          var cid = c.userId || c.id || c.convId || (c.grid ? 'g' + c.grid : '');
+          return z.st.getLastMsgValid(cid).then(function (msg) {
+            cachedLastMsg[cid] = msg || null;
+          }).catch(function () {
+            cachedLastMsg[cid] = null;
+          });
+        })).then(function () {
+          scheduleBuild(100);
+          setTimeout(nextChunk, 50);
+        });
+      }
+      nextChunk();
+    }
     /**
      * Mã các hội thoại danh sách web đang hiện (đã lọc theo Ưu tiên / Khác, Chưa đọc, Phân loại...), theo thứ tự của
      * Zalo: prop "conversations" của component cha #conversationListId (danh sách ảo hóa chỉ vẽ vài dòng trong DOM).
@@ -2570,6 +2807,7 @@
       var z = findZalo();
       if (!z) return;
       building = true;
+      populateAllConvs(z);
       var me = '';
       try { me = String(z.st.getUserId ? z.st.getUserId() : ''); } catch (e) { /* ignore */ }
       var fresh = Date.now() - namesAt > 60000;
@@ -2579,10 +2817,18 @@
         // getConversations chỉ có hội thoại 1-1, nhóm nằm ở ConvInfoDataManager và getGroups.
         try {
           var hasConv = {};
-          convs.forEach(function (c) { hasConv[c.userId] = true; });
-          convs = convs.concat((z.info && z.info.getAllConvSync ? z.info.getAllConvSync() : []).filter(function (c) { return c && !hasConv[c.userId]; }));
-          convs.forEach(function (c) { hasConv[c.userId] = true; });
-          convs = convs.concat(cachedGroups.filter(function (g) { return g && !hasConv[g.userId]; }));
+          convs.forEach(function (c) {
+            var cid = c && (c.userId || c.id || c.convId);
+            if (cid) hasConv[cid] = true;
+          });
+          (z.info && z.info.getAllConvSync ? z.info.getAllConvSync() : []).forEach(function (c) {
+            var cid = c && (c.userId || c.id || c.convId);
+            if (cid && !hasConv[cid]) { convs.push(c); hasConv[cid] = true; }
+          });
+          cachedGroups.forEach(function (g) {
+            var gid = g && (g.userId || g.groupId || g.grid || g.id);
+            if (gid && !hasConv[gid]) { convs.push(g); hasConv[gid] = true; }
+          });
         } catch (e) { /* ignore */ }
         // Trang vừa tải: danh bạ / nhóm có thể chưa nạp (rỗng) — giữ tên cũ, lần dựng sau lấy lại ngay.
         if (fresh && ((all[1] || []).length || (all[2] || []).length)) {
@@ -2602,23 +2848,33 @@
           scheduleBuild(800);
           return;
         }
-        previewList.forEach(function (p) { previews[p.convId] = p; });
-        (z.unread && z.unread.getAllUnreadsSync ? z.unread.getAllUnreadsSync() : []).forEach(function (u) { unreads[u.convId] = u; });
+        previewList.forEach(function (p) {
+          if (p.convId) previews[p.convId] = p;
+          if (p.userId) previews[p.userId] = p;
+        });
+        (z.unread && z.unread.getAllUnreadsSync ? z.unread.getAllUnreadsSync() : []).forEach(function (u) {
+          if (u.convId) unreads[u.convId] = u;
+        });
         try {
           (z.pin && z.pin.getAllPinnedConversationsSync ? z.pin.getAllPinnedConversationsSync() : []).forEach(function (p, i) {
             pinned[typeof p === 'string' ? p : (p.convId || p.id || p.userId)] = 1000 - i;
           });
         } catch (e) { /* ignore */ }
-        // Chỉ giữ hội thoại có tin nhắn
-        convs = convs.filter(function (c) { return !!previews[c.userId]; });
+        fetchAllLastMessages(z, convs);
+        // Chỉ giữ hội thoại có tin nhắn hoặc lịch sử
+        convs = convs.filter(function (c) {
+          var cid = c && (c.userId || c.id || c.convId || (c.grid ? 'g' + c.grid : ''));
+          return cid && (!!previews[cid] || !!cachedLastMsg[cid] || (unreads[cid] && ((unreads[cid].smsUnreadCount || 0) + (unreads[cid].strangerUnreadCount || 0)) > 0) || (c.infoCheckSearch && c.infoCheckSearch.lastMessageTime > 0));
+        });
         var groupStale = false;
         var list = convs.map(function (c) {
-          var id = c.userId, p = previews[id], u = unreads[id] || {}, info = names[id];
+          var id = String(c.userId || c.id || c.convId || (c.grid ? 'g' + c.grid : '')), p = previews[id], u = unreads[id] || {}, info = names[id];
           if (!info || !info.n) {
             // Không có trong danh bạ / nhóm (người lạ, Official Account...): hồ sơ của Zalo vẫn có tên + ảnh.
             var ci = null;
             try { ci = z.profile ? z.profile.getProfileFriendByIdSync(id) : null; } catch (e) { /* ignore */ }
             try { ci = ci || (z.info && z.info.getConvByIdSync ? z.info.getConvByIdSync(id) : null); } catch (e) { /* ignore */ }
+            ci = ci || c;
             if (ci && (ci.displayName || ci.zaloName)) {
               info = { n: ci.displayName || ci.zaloName, a: ci.avatar || (info && info.a) || '', ms: info && info.ms, tm: info && info.tm,
                 fb: true };
@@ -2629,29 +2885,31 @@
           // Nhóm: tên lấy trực tiếp từ hội thoại mỗi lần dựng (đổi tên nhóm hiện ngay). Nhóm mới tạo chưa có trong danh sách
           // nhóm (chỉ có tên tạm "A, B" và không có ảnh ghép): lấy lại danh sách nhóm sớm thay vì chờ 60 giây.
           var liveGroup = '';
-          if (c.isGroup) {
+          if (c.isGroup || id.indexOf('g') === 0 || c.grid != null) {
             liveGroup = c.displayName || '';
             if (!liveGroup) {
               try { var gc = z.info && z.info.getConvByIdSync ? z.info.getConvByIdSync(id) : null; liveGroup = (gc && gc.displayName) || ''; } catch (e) { /* ignore */ }
             }
             if (!names[id] || names[id].fb || (liveGroup && liveGroup !== names[id].n)) groupStale = true;
           }
-          var name = (!c.isGroup && aliasOf(id)) || liveGroup || info.n || (id === me ? 'My Documents' : '') || (p && !c.isGroup && p.fromUid === id ? p.dName : '') || id;
+          var lm = cachedLastMsg[id];
+          var name = (!c.isGroup && aliasOf(id)) || liveGroup || info.n || (id === me ? 'My Documents' : '') || (p && !c.isGroup && p.fromUid === id ? p.dName : '') || (lm && !c.isGroup && lm.fromUid === id ? lm.dName : '') || id;
           if (name === 'Truyền File') name = 'My Documents'; // tên nội bộ của My Documents, web hiện "My Documents"
-          var text = 'Chưa có tin nhắn', icon = '', miss = false;
-          if (p) {
-            var pv = previewText(p);
+          var text = '', icon = '', miss = false;
+          var activeMsg = p || lm;
+          if (activeMsg) {
+            var pv = previewText(activeMsg);
             text = pv.t;
             icon = pv.ic;
             miss = pv.miss;
-            if (p.fromUid === me || p.fromUid === '0') text = 'Bạn: ' + text;
-            else if (c.isGroup && (p.dName || p.fromUid)) {
-              // Người gửi trong nhóm: tên gợi nhớ / tên trong danh bạ như Zalo hiện trong chat, không phải tên Zalo gốc (dName).
-              var fr = names[p.fromUid];
-              var who = aliasOf(p.fromUid) || (fr && !fr.ms && fr.n) || p.dName;
-              if (!who) { // không phải bạn bè, tin cuối không có dName
+            var fromUid = activeMsg.fromUid || '';
+            if (fromUid === me || fromUid === '0') text = 'Bạn: ' + text;
+            else if (c.isGroup && (activeMsg.dName || fromUid)) {
+              var fr = names[fromUid];
+              var who = aliasOf(fromUid) || (fr && !fr.ms && fr.n) || activeMsg.dName;
+              if (!who) {
                 try {
-                  var pr = z.profile ? z.profile.getProfileFriendByIdSync(p.fromUid) : null;
+                  var pr = z.profile ? z.profile.getProfileFriendByIdSync(fromUid) : null;
                   who = pr && (pr.displayName || pr.zaloName);
                 } catch (e) { /* ignore */ }
               }
@@ -2660,13 +2918,15 @@
           }
           var muted = false;
           try { muted = !!(z.mute && z.mute.isMuted && z.mute.isMuted(id)); } catch (e) { /* ignore */ }
+          var time = (p && +p.messageTime) || (lm && +lm.sendDttm) || +c.lastActionTime || (c.infoCheckSearch && +c.infoCheckSearch.lastMessageTime) || +c.lastUpdate || +c.createdTime || 0;
           return { id: id, g: !!c.isGroup, n: name, a: info.a || '', ms: info.a ? [] : info.ms || [], tm: info.tm || 0,
-            t: p ? +p.messageTime || 0 : 0, m: text, ic: icon, miss: miss,
+            t: time, m: text, ic: icon, miss: miss,
             u: (u.smsUnreadCount || 0) + (u.strangerUnreadCount || 0), at: u.mentionUnreadCount || 0,
             ud: u.smsUnreadNotCount || 0, p: pinned[id] || 0, mu: muted, me: id === me };
         });
         list = list.filter(function (it) {
-          return it.u > 0 || it.t > 0 || (it.m && it.m !== 'Chưa có tin nhắn');
+          var hasMsg = !!(it.m && it.m.trim() && it.m !== 'Chưa có tin nhắn');
+          return it.u > 0 || hasMsg;
         });
         // Có nhóm mới / vừa đổi tên: lấy lại danh sách nhóm (ảnh ghép, số người) sau ~10 giây, không đợi đủ 60 giây.
         if (groupStale && Date.now() - namesAt > 10000 && Date.now() - groupRetryAt > 10000) {
@@ -2675,24 +2935,45 @@
           scheduleBuild(1000);
         }
         var order = webOrder();
-        if (order && order.length) {
-          // Đúng tab lọc đang chọn trên thanh của Zalo, theo thứ tự của Zalo (không tải hội thoại khác vào ưu tiên).
+        var ft = filterTabs();
+        var tabName = (ft && ft[0] && ft[0][ft[1]]) || '';
+        var isOtherTab = tabName.indexOf('Khác') >= 0;
+        var isFocusTab = tabName.indexOf('Ưu tiên') >= 0;
+        var isUnreadTab = tabName.indexOf('Chưa đọc') >= 0;
+
+        var isSpecialFilter = false;
+        try {
+          var bar = document.querySelector('#sidebarNav .msg-filters-bar');
+          if (bar) {
+            var sel = bar.querySelector('.filter-item.selected, .filter-label.selected, .filter-preview-v2.selected');
+            if (sel) isSpecialFilter = true;
+          }
+        } catch (e) {}
+        if (isSpecialFilter && order && order.length) {
           var byId = {}, seen = {};
-          list.forEach(function (it) { byId[it.id] = it; });
+          list.forEach(function (it) {
+            byId[it.id] = it;
+            if (it.id.indexOf('g') === 0) byId[it.id.slice(1)] = it;
+            else byId['g' + it.id] = it;
+          });
           var ordered = [];
           order.forEach(function (id) {
-            if (byId[id] && !seen[id]) {
-              ordered.push(byId[id]);
-              seen[id] = true;
+            var item = byId[id];
+            if (item && !seen[item.id]) {
+              ordered.push(item);
+              seen[item.id] = true;
             }
           });
           list = ordered;
-        } else if (order && !order.length) {
+        } else if (isSpecialFilter && order && !order.length) {
           list = [];
         } else {
-          if (Date.now() - pageStart < 25000) {
-            scheduleBuild(400);
-            return;
+          if (isOtherTab && z.arch) {
+            list = list.filter(function (it) { return z.arch.isArchivedChat(it.id); });
+          } else if (isFocusTab && z.arch) {
+            list = list.filter(function (it) { return !z.arch.isArchivedChat(it.id); });
+          } else if (isUnreadTab) {
+            list = list.filter(function (it) { return it.u > 0; });
           }
           list.sort(function (a, b) { return (b.p - a.p) || (b.t - a.t); });
         }
@@ -2703,7 +2984,7 @@
         // "Có tên" = đã có trong danh bạ / nhóm (có cả ảnh); tên lấy tạm từ tin cuối thì chưa tính.
         var withMsg = 0, named = 0;
         list.forEach(function (it) { if (it.t) withMsg++; if ((it.n && it.n !== it.id) || names[it.id] || it.me || it.g) named++; });
-        if (list.length && (!withMsg || !me || named < list.length * 0.6) && Date.now() - pageStart < 25000) {
+        if (list.length && (!withMsg || !me || named < list.length * 0.4) && Date.now() - pageStart < 15000) {
           scheduleBuild(800);
           return;
         }
@@ -2722,25 +3003,263 @@
     api.requestConvList = function () { lastSent = ''; scheduleBuild(0); };
     api.loadMoreConvs = function () {
       safe(function () {
-        var cl = document.getElementById('conversationList');
-        var p = cl && (cl.closest('.virtualized-scroll') || cl.parentElement);
-        if (p && p.scrollTop + p.clientHeight < p.scrollHeight) {
-          p.scrollTop = Math.min(p.scrollHeight, p.scrollTop + 600);
-          p.dispatchEvent(new Event('scroll', { bubbles: true }));
+        var sc = document.querySelector('#conversationListId .virtualized-scroll, #sidebarNav .virtualized-scroll, [class*=ReactVirtualized__Grid]');
+        if (sc && sc.scrollTop + sc.clientHeight < sc.scrollHeight) {
+          sc.scrollTop = Math.min(sc.scrollHeight, sc.scrollTop + 800);
+          sc.dispatchEvent(new Event('scroll', { bubbles: true }));
         }
-        var z = findZalo();
-        if (z && z.clc && z.clc.convDataManager && typeof z.clc.convDataManager.loadData === 'function') {
-          try { z.clc.convDataManager.loadData(); } catch (e) { /* ignore */ }
+        var dm = findConvDataManager();
+        if (dm && typeof dm.loadData === 'function') {
+          try { dm.loadData(); } catch (e) { /* ignore */ }
+        }
+        var cc = convController();
+        if (cc && cc.ctl && typeof cc.ctl.loadMore === 'function') {
+          try { cc.ctl.loadMore(); } catch (e) { /* ignore */ }
         }
         scheduleBuild(200);
       });
     };
     api.openConv = function (id) {
+      var sid = String(id);
       var z = findZalo();
-      if (z && z.conv && z.conv.openConversation) {
-        z.conv.openConversation(String(id)).then(function (ok) { if (!ok) diag('native list: open conv refused'); });
-        setTimeout(function () { if (M.sync) M.sync(); }, 150);
+      var conv = (z && z.info && z.info.getConvByIdSync) ? z.info.getConvByIdSync(sid) : null;
+      if (!conv && sid.indexOf('g') === 0) {
+        conv = (z && z.info && z.info.getConvByIdSync) ? z.info.getConvByIdSync(sid.slice(1)) : null;
       }
+      if (!conv && sid.indexOf('g') !== 0) {
+        conv = (z && z.info && z.info.getConvByIdSync) ? z.info.getConvByIdSync('g' + sid) : null;
+      }
+      if (z && z.clc && conv && typeof z.clc.selectConversation === 'function') {
+        try {
+          z.clc.selectConversation(conv);
+        } catch (e) {
+          if (z.conv && z.conv.openConversation) {
+            z.conv.openConversation(sid, { force: true, credentConv: conv, defaultConv: conv });
+          }
+        }
+      } else if (z && z.conv && z.conv.openConversation) {
+        var opts = conv ? { force: true, credentConv: conv, defaultConv: conv } : undefined;
+        z.conv.openConversation(sid, opts).then(function (ok) { if (!ok) diag('native list: open conv refused'); });
+      }
+      setTimeout(function () { if (M.sync) M.sync(); }, 150);
+    };
+    api.syncAll = function () {
+      var z = findZalo();
+      if (!z || !z.sync) {
+        diag('syncAll: sync not ready');
+        return false;
+      }
+      try {
+        if (z.sync.storage && z.sync.storage.syncState) {
+          z.sync.storage.syncState.setLastSyncConvSuccessTs(0);
+          z.sync.storage.syncState.setLastSyncSuccessTs(0);
+        }
+        z.sync.sync(11); // SyncSource.MANUAL
+        diag('syncAll: requested manual full sync from time 0');
+        return true;
+      } catch (e) {
+        diag('syncAll failed: ' + (e && e.message));
+        return false;
+      }
+    };
+    // ------------------------------------------------------------------ Patch: load ALL chat history & unroll messages & fallback unsupported
+    api.enableFullHistory = function () {
+      try {
+        var jp = window.webpackJsonp;
+        if (!jp || typeof jp.push !== "function") return false;
+
+        var tid = "zd_hist_" + Date.now(), mods = {}, r = null;
+        mods[tid] = function (m, e, req) { r = req; };
+        jp.push([[tid], mods, [[tid]]]);
+        if (!r || !r.c) return false;
+
+        // 1. NDmK: disable roll_msg 14-day limit
+        if (r.c["NDmK"] && r.c["NDmK"].exports && r.c["NDmK"].exports.default && r.c["NDmK"].exports.default.roll_msg) {
+          var rm = r.c["NDmK"].exports.default.roll_msg;
+          rm.enable = false;
+          rm.expired_time = Infinity;
+        }
+
+        // 2. mlG1: message pruning manager - never treat historical messages as rolled/deleted
+        if (r.c["mlG1"] && r.c["mlG1"].exports && r.c["mlG1"].exports.default) {
+          var ml = r.c["mlG1"].exports.default;
+          var mlProto = Object.getPrototypeOf(ml);
+          if (mlProto) mlProto._isRolledMessage = function () { return false; };
+          ml._isRolledMessage = function () { return false; };
+          var ttl = r.c["8Nax"] && r.c["8Nax"].exports && r.c["8Nax"].exports.a && r.c["8Nax"].exports.a.instance;
+          if (ttl && typeof ttl.filterDBMessage === "function") {
+            ml.filter = function (e) { return ttl.filterDBMessage(e); };
+          } else {
+            ml.filter = function () { return true; };
+          }
+        }
+
+        // 3. P6UB: quoted / plain text fallback for unsupported rich messages
+        function extractFallbackText(t) {
+          if (!t) return "";
+          if (typeof t === "string") return t;
+          if (t.title) return t.title;
+          if (t.description) return t.description;
+          if (t.params) {
+            if (typeof t.params === "string") {
+              try {
+                var p = JSON.parse(t.params);
+                if (p.title || p.description || p.content) return p.title || p.description || p.content;
+              } catch (e) {}
+            } else if (typeof t.params === "object") {
+              if (t.params.title || t.params.description || t.params.content) return t.params.title || t.params.description || t.params.content;
+            }
+          }
+          if (t.message) {
+            if (typeof t.message === "string") return t.message;
+            if (typeof t.message === "object") {
+              if (t.message.title || t.message.description || t.message.text) return t.message.title || t.message.description || t.message.text;
+            }
+          }
+          if (t.content && typeof t.content === "string") return t.content;
+          return "";
+        }
+
+        if (r.c["P6UB"] && r.c["P6UB"].exports && r.c["P6UB"].exports.default) {
+          var pProto = Object.getPrototypeOf(r.c["P6UB"].exports.default);
+          if (pProto && typeof pProto.getPlainText === "function" && !pProto.getPlainText.__zdPatched) {
+            var origGetPlainText = pProto.getPlainText;
+            var patchedGetPlainText = function (t, n, a) {
+              var res = origGetPlainText.call(this, t, n, a);
+              if (res && (res.indexOf("chưa hỗ trợ") >= 0 || res.indexOf("STR_MSG_NOT_SUPPORTED") >= 0)) {
+                var fb = extractFallbackText(t);
+                if (fb) return "[" + fb + "]";
+              }
+              return res;
+            };
+            patchedGetPlainText.__zdPatched = true;
+            pProto.getPlainText = patchedGetPlainText;
+          }
+        }
+
+        // 4. Find ZCU6 module
+        var ZCU6_mod = null;
+        for (var k in r.c) {
+          if (r.c[k] && r.c[k].exports && r.c[k].exports.d && r.c[k].exports.d.prototype && r.c[k].exports.d.prototype.loadTopMessagesForConversation) {
+            ZCU6_mod = r.c[k].exports.d;
+            break;
+          }
+        }
+        if (!ZCU6_mod) return false;
+
+        // 5. Patch ZCU6 getLastMessagesForConversation: fallback to local DB when cloud over-queue fails or returns empty
+        if (!ZCU6_mod.prototype.getLastMessagesForConversation.__zdPatched) {
+          var origGetLast = ZCU6_mod.prototype.getLastMessagesForConversation;
+          var patchedGetLast = async function (e, t) {
+            var res = await origGetLast.call(this, e, t);
+            var state = typeof this.getState === "function" ? this.getState() : null;
+            if (!state || !state.messages || state.messages.length === 0) {
+              try {
+                var p_mod = r.c["enz2"] && r.c["enz2"].exports && r.c["enz2"].exports.a;
+                if (p_mod && typeof p_mod.getLastMessageFrom === "function") {
+                  var local = await p_mod.getLastMessageFrom(this.conversationId, "999999999999999999", Date.now(), 30, true, true);
+                  if (local && local.messages && local.messages.length > 0) {
+                    var T_mod = r.c["DNFe"] && r.c["DNFe"].exports && r.c["DNFe"].exports.a;
+                    var parsed = (T_mod && typeof T_mod.doParse === "function") ? await T_mod.doParse(local.messages, this.conversationId) : local.messages;
+                    this.dispatch({
+                      type: "JUMP_TO_MESSAGE",
+                      payload: { messages: parsed, conversationId: this.conversationId }
+                    });
+                  }
+                }
+              } catch (ex) {}
+            }
+            return res;
+          };
+          patchedGetLast.__zdPatched = true;
+          ZCU6_mod.prototype.getLastMessagesForConversation = patchedGetLast;
+        }
+
+        // 6. Patch ZCU6 getMoreTopFromCloud: fallback to local DB when cloud stops
+        if (!ZCU6_mod.prototype.getMoreTopFromCloud.__zdPatched) {
+          var origGetMoreTop = ZCU6_mod.prototype.getMoreTopFromCloud;
+          var patchedGetMoreTop = async function (requestMsgId, existedViewMsgs) {
+            var self = this;
+            var result = null;
+            try {
+              result = await origGetMoreTop.call(self, requestMsgId, existedViewMsgs);
+            } catch (err) {
+              result = { groupMsgs: [], hasMore: false };
+            }
+            if (result && result.groupMsgs && result.groupMsgs.length === 0 && result.hasMore === false) {
+              try {
+                var mc = (r && r.c && r.c["bdot"] && r.c["bdot"].exports && r.c["bdot"].exports.default) ? r.c["bdot"].exports.default.messageCache : null;
+                if (mc && mc._cache && mc._cache.has(self.conversationId)) {
+                  var convCache = mc._cache.get(self.conversationId);
+                  if (convCache && typeof convCache.loadMoreTopLocal === "function") {
+                    var topMsg = (self.messages && self.messages.length > 0) ? self.messages[0] : ((existedViewMsgs && existedViewMsgs.length > 0) ? existedViewMsgs[0] : null);
+                    var ts = topMsg && topMsg.sendDttm ? (typeof topMsg.sendDttm === "number" ? topMsg.sendDttm : parseInt(topMsg.sendDttm, 10)) : Date.now();
+                    var mid = topMsg && topMsg.msgId ? topMsg.msgId : (requestMsgId || "0");
+                    var localResult = await convCache.loadMoreTopLocal({
+                      msgId: mid,
+                      timestamp: ts,
+                      count: 50,
+                      include: false,
+                      forward: false,
+                      canAbort: false
+                    });
+                    if (localResult && localResult.msgs && localResult.msgs.length > 0) {
+                      return {
+                        groupMsgs: localResult.msgs,
+                        hasMore: localResult.hasMore,
+                        isOld: true,
+                        lastMsgId: localResult.msgs[localResult.msgs.length - 1].msgId
+                      };
+                    }
+                  }
+                }
+              } catch (ex) {}
+            }
+            return result;
+          };
+          patchedGetMoreTop.__zdPatched = true;
+          ZCU6_mod.prototype.getMoreTopFromCloud = patchedGetMoreTop;
+        }
+
+        return true;
+      } catch (ex) {
+        return false;
+      }
+    };
+
+    api.loadMoreLocalHistory = function (convId, beforeMsgId, beforeTimestamp, count) {
+      var z = findZalo();
+      if (!z) return Promise.reject('Zalo not ready');
+      return new Promise(function (resolve, reject) {
+        try {
+          var jp = window.webpackJsonp;
+          if (!jp || typeof jp.push !== 'function') return reject('webpackJsonp not ready');
+          var tid = 'zd_loadlocal_' + Date.now(), mods = {}, r = null;
+          mods[tid] = function (m, e, req) { r = req; };
+          jp.push([[tid], mods, [[tid]]]);
+          if (!r || !r.c || !r.c['bdot'] || !r.c['bdot'].exports || !r.c['bdot'].exports.default || !r.c['bdot'].exports.default.messageCache) {
+            return reject('messageCache not found');
+          }
+          var mc = r.c['bdot'].exports.default.messageCache;
+          if (!mc._cache.has(convId)) {
+            mc.getMessagesForConversation({conversationId: convId});
+          }
+          var convCache = mc._cache.get(convId);
+          if (!convCache || !convCache.loadMoreTopLocal) {
+            return reject('convCache not ready');
+          }
+          convCache.loadMoreTopLocal({
+            msgId: beforeMsgId || '0',
+            timestamp: beforeTimestamp || 0,
+            count: count || 100,
+            include: false,
+            forward: false,
+            canAbort: false
+          }).then(resolve).catch(reject);
+        } catch (ex) {
+          reject(ex);
+        }
+      });
     };
 
     /*
@@ -2906,7 +3425,8 @@
       }
       var cs = document.querySelector('#sidebarNav .msg-filters-bar'), tab = document.getElementById('main-tab');
       if (!cs || !cs.offsetHeight) cs = document.getElementById('contact-search');
-      var hb = cs && active ? Math.max(0, Math.round(cs.getBoundingClientRect().bottom)) : 0;
+      var cEl = document.getElementById('container'); if (cEl && cEl.scrollTop !== 0) cEl.scrollTop = 0;
+      var hb = active ? 96 : 0;
       var d = tab && active ? tab.getBoundingClientRect() : null;
       var sb = document.getElementById('sidebarNav');
       var sw = twoCol ? (sb && sb.offsetWidth ? Math.round(sb.getBoundingClientRect().width) : 340) : 0;
@@ -2975,7 +3495,23 @@
         var ch = h.querySelector('.zd-head-av .a-child'), m = ch && /url\(["']?(https?:[^"')]+)/.exec(ch.style.backgroundImage || '');
         if (m) src = m[1];
       }
-      return [n ? n.textContent : '', src];
+      var name = n ? n.textContent.trim() : '';
+      if (!name || !src) {
+        try {
+          var z = findZalo();
+          var me = z && z.st && typeof z.st.getUserId === 'function' ? z.st.getUserId() : '';
+          var prof = (z && z.profile && me) ? z.profile.getProfileFriendByIdSync(me) : null;
+          if (prof) {
+            if (!name) name = prof.displayName || prof.zaloName || '';
+            if (!src) src = prof.avatar || '';
+          }
+        } catch (e) {}
+      }
+      if (!name) {
+        var title = document.title || '';
+        if (title.indexOf('Zalo - ') === 0) name = title.slice(7).trim();
+      }
+      return [name, src];
     }
 
     // Zalo cập nhật danh sách web (kể cả khi đang ẩn) mỗi khi có tin mới, đọc, ghim...: dựng lại danh sách native.
@@ -2998,12 +3534,13 @@
         if (e.target && e.target.closest && e.target.closest('.msg-filters-bar, .popover-v3')) {
           // Ngay sau khi Zalo xử lý cú bấm (bắt ở pha capture, nên chờ một nhịp): app trượt trang cùng lúc với tab.
           scheduleBuild(0);
-          setTimeout(function () { scheduleBuild(0); }, 120);
+          setTimeout(function () { scheduleBuild(0); populateAllConvs(findZalo()); }, 120);
           setTimeout(function () { scheduleBuild(0); }, 700);
         }
       }, true);
-      setInterval(function () { if (!isHidden(document)) scheduleBuild(0); }, 15000);
+      setInterval(function () { if (!isHidden(document)) { populateAllConvs(findZalo()); scheduleBuild(0); } }, 15000);
       scheduleBuild(1500);
+      populateAllConvs(findZalo());
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
     else start();
@@ -3933,6 +4470,17 @@
       if (callOpen('callback', video)) { e.preventDefault(); e.stopImmediatePropagation(); }
     }, true);
   });
+
+  // Auto-enable full history and unsupported message fallback, retrying until webpack ready
+  var fullHistRetry = 0;
+  var fullHistTimer = setInterval(function () {
+    fullHistRetry++;
+    if (api.enableFullHistory && api.enableFullHistory()) {
+      log("enableFullHistory auto success");
+      if (fullHistRetry > 15) clearInterval(fullHistTimer);
+    }
+    if (fullHistRetry > 60) clearInterval(fullHistTimer);
+  }, 1000);
 
   api.version = 11;
 })();
