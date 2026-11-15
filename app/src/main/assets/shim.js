@@ -881,7 +881,7 @@
       '.popover-v3.zd-conv-pop { position: fixed !important; left: 12px !important; right: auto !important;' +
         ' bottom: auto !important; margin: 0 !important; transform: none !important; max-width: calc(100vw - 24px);' +
         ' z-index: 9992 !important; }',
-      '#zd-focus-scrim { position: fixed; inset: 0; z-index: 9990; background: rgba(0,0,0,.45); pointer-events: none;' +
+      '#zd-focus-scrim { position: fixed; inset: 0; z-index: 9990; background: rgba(0,0,0,.45); pointer-events: auto;' +
         ' opacity: 0; transition: opacity .24s cubic-bezier(.2,.9,.25,1); }',
       '#zd-focus-scrim.on { opacity: 1; }',
       '#zd-focus { display: none !important; }',
@@ -2536,7 +2536,7 @@
               var rawFmt = ex[n];
               found.fmt = function (t, n) {
                 var res = rawFmt(t, n);
-                if (res && res.message && (res.message.indexOf('chưa hỗ trợ') >= 0 || res.message.indexOf('STR_MSG_NOT_SUPPORTED') >= 0)) {
+                if (res && typeof res.message === 'string' && (res.message.indexOf('chưa hỗ trợ') >= 0 || res.message.indexOf('STR_MSG_NOT_SUPPORTED') >= 0)) {
                   var fb = extractFallbackText(t);
                   if (fb) res.message = '[' + fb + ']';
                 }
@@ -2911,7 +2911,7 @@
           var name = (!c.isGroup && aliasOf(id)) || liveGroup || info.n || (id === me ? 'My Documents' : '') || (p && !c.isGroup && p.fromUid === id ? p.dName : '') || (lm && !c.isGroup && lm.fromUid === id ? lm.dName : '') || id;
           if (name === 'Truyền File') name = 'My Documents'; // tên nội bộ của My Documents, web hiện "My Documents"
           var text = '', icon = '', miss = false;
-          var isUnsupported = p && ((p.message && (p.message.indexOf('chưa hỗ trợ') >= 0 || p.message.indexOf('STR_MSG_NOT_SUPPORTED') >= 0)) || (p.plainText && (p.plainText.indexOf('chưa hỗ trợ') >= 0 || p.plainText.indexOf('STR_MSG_NOT_SUPPORTED') >= 0)));
+          var isUnsupported = p && ((typeof p.message === 'string' && (p.message.indexOf('chưa hỗ trợ') >= 0 || p.message.indexOf('STR_MSG_NOT_SUPPORTED') >= 0)) || (typeof p.plainText === 'string' && (p.plainText.indexOf('chưa hỗ trợ') >= 0 || p.plainText.indexOf('STR_MSG_NOT_SUPPORTED') >= 0)));
           var activeMsg = (isUnsupported && lm) ? lm : (p || lm);
           if (activeMsg) {
             var pv = previewText(activeMsg);
@@ -3142,7 +3142,7 @@
             var origGetPlainText = pProto.getPlainText;
             var patchedGetPlainText = function (t, n, a) {
               var res = origGetPlainText.call(this, t, n, a);
-              if (res && (res.indexOf("chưa hỗ trợ") >= 0 || res.indexOf("STR_MSG_NOT_SUPPORTED") >= 0)) {
+              if (res && typeof res === "string" && (res.indexOf("chưa hỗ trợ") >= 0 || res.indexOf("STR_MSG_NOT_SUPPORTED") >= 0)) {
                 var fb = extractFallbackText(t);
                 if (fb) return "[" + fb + "]";
               }
@@ -3289,6 +3289,11 @@
       focusEnd(true);
       var s = document.createElement('div');
       s.id = 'zd-focus-scrim';
+      s.addEventListener('pointerdown', function (e) {
+        e.stopPropagation();
+        e.preventDefault();
+        safe(closeMenus);
+      }, true);
       document.body.appendChild(s);
       s.getBoundingClientRect();
       s.classList.add('on');
@@ -3328,7 +3333,14 @@
       h = +h || 78;
       safe(function () { focusStart(y, h); });
       var z = findZalo(), cc = convController(), conv = null;
-      try { conv = z && z.info && z.info.getConvByIdSync ? z.info.getConvByIdSync(id) : null; } catch (e) { /* ignore */ }
+      try {
+        conv = (cc && cc.ctl && cc.ctl.convDataManager && cc.ctl.convDataManager.getConvByIdSync && cc.ctl.convDataManager.getConvByIdSync(id)) ||
+               (cc && cc.ctl && cc.ctl.getRecentContactWithId && cc.ctl.getRecentContactWithId(id)) ||
+               (z && z.convDM && z.convDM.getConvByIdSync ? z.convDM.getConvByIdSync(id) : null) ||
+               (z && z.info && z.info.getConvByIdSync ? z.info.getConvByIdSync(id) : null);
+      } catch (e) { /* ignore */ }
+      if (!conv) conv = { userId: id };
+      if (!conv.userId) conv.userId = id;
       if (cc && conv) {
         var b = cc.row.getBoundingClientRect();
         cc.ctl.showConvActionMenu({ clientX: b.right - 24, clientY: y + h / 2, pageX: b.right - 24, pageY: y + h / 2,

@@ -31,6 +31,7 @@ import android.util.Base64;
 import android.util.Log;
 import android.util.LruCache;
 import android.util.Property;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
@@ -80,6 +81,7 @@ public final class NativeChatList extends FrameLayout {
     private int bg;
     private int columnWidth = 0;
     private String selectedId = null;
+    private boolean passTouch = true;
     private final Paint colBorderPaint = new Paint(1);
     private boolean bootEnding;
     private boolean booting;
@@ -1236,6 +1238,7 @@ public final class NativeChatList extends FrameLayout {
                 Prefs.sp(getContext()).edit().putString(BOOT_LAYOUT, str).apply();
             }
             boolean z2 = zOptBoolean && jSONObject.optBoolean("pass", true);
+            this.passTouch = z2;
             if (!z2) {
                 this.openingAt = 0L;
             }
@@ -1276,7 +1279,7 @@ public final class NativeChatList extends FrameLayout {
             boolean isWide = getResources().getConfiguration().screenWidthDp >= 600;
             setColumnWidthPx((isWide && sw > 0) ? dp(sw) : 0);
             setVisibility((z || this.columnWidth > 0) ? 0 : 8);
-            if (this.columnWidth > 0) setTranslationZ(z2 ? 1000.0f : 0.0f);
+            setTranslationZ(z2 ? (this.columnWidth > 0 ? 1000.0f : 0.0f) : -1.0f);
             int[] iArr = null;
             placeGlass(z ? jSONArrayOptJSONArray2 : null, jSONObject.optBoolean("dh"));
             if (zaloWebView != null) {
@@ -1297,6 +1300,14 @@ public final class NativeChatList extends FrameLayout {
         } catch (Exception e) {
             Log.w("Zola", "bad native layout", e);
         }
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        if (!this.passTouch) {
+            return false;
+        }
+        return super.dispatchTouchEvent(ev);
     }
 
     @Override
