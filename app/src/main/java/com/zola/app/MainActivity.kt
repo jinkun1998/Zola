@@ -23,6 +23,7 @@ import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import java.util.UUID
 import java.util.regex.Pattern
+import org.json.JSONObject
 
 class MainActivity : AppCompatActivity() {
 
@@ -495,6 +496,11 @@ class MainActivity : AppCompatActivity() {
                 lp.leftMargin = nativeList.columnWidth
                 welcomeView.layoutParams = lp
             }
+            try {
+                val obj = JSONObject(json)
+                val pass = obj.optBoolean("pass", true)
+                welcomeView.translationZ = if (pass && nativeList.columnWidth > 0) 999f else -1f
+            } catch (_: Exception) {}
             updateWelcomeVisibility()
         }
     }

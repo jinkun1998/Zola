@@ -3785,7 +3785,7 @@
         : what === 'add' ? document.querySelectorAll('#contact-search > .z--btn--v2')[0]
         : what === 'group' ? document.querySelectorAll('#contact-search > .z--btn--v2')[1]
         : what === 'tab' ? document.querySelectorAll(bar + '.tab-item')[i | 0]
-        : what === 'cat' ? document.querySelector(bar + '.filter-preview-v2')
+        : what === 'cat' ? (document.querySelector(bar + '.filter-preview-v2') || document.querySelector(bar + '.label-filter-preview'))
         : what === 'more' ? document.querySelector(bar + '.z--btn--v2') : null;
       if (!el) return;
       if (what === 'search') { el.focus(); el.click(); return; }
@@ -3890,7 +3890,9 @@
       'html.zd-m body > .popover-v3.zd-drop > .zmenu-body { transform-origin: top center; animation: zd-drop-in .26s ' + EASE_IN + ' both; }',
       'html.zd-m body > .popover-v3.zd-drop > .zmenu-body .zl-scroll-menu { animation: zd-drop-items .3s ' + EASE_IN + ' both; }',
       'html.zd-m .zd-pop-ghost > .zmenu-body { will-change: transform, opacity; }',
-      'html.zd-m .zd-pop-ghost.zd-drop > .zmenu-body { transform-origin: top center; animation: zd-drop-out .18s ease-out both !important; }'
+      'html.zd-m .zd-pop-ghost.zd-drop > .zmenu-body { transform-origin: top center; animation: zd-drop-out .18s ease-out both !important; }',
+      'html.zd-m.zd-twocol body > .popover-v3.zd-drop, html.zd-m.zd-twocol body > .zd-pop-ghost.zd-drop { left: auto !important; right: calc(100vw - 336px) !important; max-width: 330px !important; }',
+      'html.zd-m.zd-twocol body > .popover-v3.zd-drop > .zmenu-body, html.zd-m.zd-twocol body > .zd-pop-ghost.zd-drop > .zmenu-body { max-width: 330px !important; }'
     ].join('\n');
     function addCss() {
       try {
@@ -3947,11 +3949,19 @@
       });
     }
     function added(n) {
-      if (!isMenu(n) || !barBtn || Date.now() - barAt > 1500) return;
-      n.classList.add('zd-drop');
-      dropOwner = barBtn;
-      dropPop = n;
-      barBtn = null;
+      if (!isMenu(n)) return;
+      var isDrop = (barBtn && Date.now() - barAt <= 1500) ||
+        !!n.querySelector('.fa-outline-filter, [data-translate-inner*="STR_FILTER"], .category-item, [class*=filter-menu]');
+      if (!isDrop) {
+        var left = parseFloat(n.style.left) || 0;
+        if (left > 100 && left < 340) isDrop = true;
+      }
+      if (isDrop) {
+        n.classList.add('zd-drop');
+        dropOwner = barBtn;
+        dropPop = n;
+        barBtn = null;
+      }
     }
     function removed(n) {
       if (!isMenu(n)) return;
@@ -3969,12 +3979,20 @@
     function start() {
       addCss();
       new MutationObserver(function (ms) {
+        var popChanged = false;
         ms.forEach(function (m) {
           if (m.target !== document.body) return;
-          [].forEach.call(m.addedNodes, function (n) { safe(function () { added(n); }); });
-          [].forEach.call(m.removedNodes, removed);
+          [].forEach.call(m.addedNodes, function (n) {
+            safe(function () { added(n); });
+            if (n.nodeType === 1 && n.classList && n.classList.contains('popover-v3')) popChanged = true;
+          });
+          [].forEach.call(m.removedNodes, function (n) {
+            removed(n);
+            if (n.nodeType === 1 && n.classList && n.classList.contains('popover-v3')) popChanged = true;
+          });
         });
         safe(track);
+        if (popChanged && api.syncNative) api.syncNative();
       }).observe(document.body, { childList: true });
       // Chạm để đóng: đo vị trí menu ngay trước khi Zalo gỡ nó (lúc gắn vào Zalo / shim còn đang đặt lại vị trí).
       document.addEventListener('pointerdown', function (e) {
