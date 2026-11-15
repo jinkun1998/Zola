@@ -2461,6 +2461,31 @@
    */
   safe(function () {
     if (!mobile || !cfg.nativeList || window.opener || window.top !== window) return;
+    function extractFallbackText(t) {
+      if (!t) return "";
+      if (typeof t === "string") return t;
+      if (t.title) return t.title;
+      if (t.description) return t.description;
+      if (t.params) {
+        if (typeof t.params === "string") {
+          try {
+            var p = JSON.parse(t.params);
+            if (p.title || p.description || p.content) return p.title || p.description || p.content;
+          } catch (e) {}
+        } else if (typeof t.params === "object") {
+          if (t.params.title || t.params.description || t.params.content) return t.params.title || t.params.description || t.params.content;
+        }
+      }
+      if (t.message) {
+        if (typeof t.message === "string") return t.message;
+        if (typeof t.message === "object") {
+          if (t.message.title || t.message.description || t.message.text) return t.message.title || t.message.description || t.message.text;
+        }
+      }
+      if (t.content && typeof t.content === "string") return t.content;
+      return "";
+    }
+
     var Z = null; // các dịch vụ của Zalo, tìm một lần
     function findZalo() {
       if (Z) return Z;
@@ -2512,7 +2537,7 @@
               found.fmt = function (t, n) {
                 var res = rawFmt(t, n);
                 if (res && res.message && (res.message.indexOf('chưa hỗ trợ') >= 0 || res.message.indexOf('STR_MSG_NOT_SUPPORTED') >= 0)) {
-                  var fb = (t && (t.title || t.description || (t.params && (t.params.title || t.params.description || t.params.content)) || (t.message && (t.message.title || t.message.description || t.message.text)))) || '';
+                  var fb = extractFallbackText(t);
                   if (fb) res.message = '[' + fb + ']';
                 }
                 return res;
@@ -2886,7 +2911,8 @@
           var name = (!c.isGroup && aliasOf(id)) || liveGroup || info.n || (id === me ? 'My Documents' : '') || (p && !c.isGroup && p.fromUid === id ? p.dName : '') || (lm && !c.isGroup && lm.fromUid === id ? lm.dName : '') || id;
           if (name === 'Truyền File') name = 'My Documents'; // tên nội bộ của My Documents, web hiện "My Documents"
           var text = '', icon = '', miss = false;
-          var activeMsg = p || lm;
+          var isUnsupported = p && ((p.message && (p.message.indexOf('chưa hỗ trợ') >= 0 || p.message.indexOf('STR_MSG_NOT_SUPPORTED') >= 0)) || (p.plainText && (p.plainText.indexOf('chưa hỗ trợ') >= 0 || p.plainText.indexOf('STR_MSG_NOT_SUPPORTED') >= 0)));
+          var activeMsg = (isUnsupported && lm) ? lm : (p || lm);
           if (activeMsg) {
             var pv = previewText(activeMsg);
             text = pv.t;
