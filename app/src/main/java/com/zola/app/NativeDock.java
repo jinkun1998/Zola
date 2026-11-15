@@ -6,6 +6,8 @@ import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.LinearGradient;
+import android.graphics.Shader;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
@@ -49,13 +51,18 @@ public final class NativeDock extends FrameLayout {
     private final String[] keys;
     private String last;
     private int n;
+    // ponytail: ceiling is dual-layer blur + 2D specular gradients; upgrade path: AGSL runtime shader for animated chromatic aberration.
     private final Paint pill;
+    private final Paint pillShadow;
+    private final Paint pillRimPaint;
     private ValueAnimator pillAnim;
     private float pillX;
     private final boolean[] present;
     private final Runnable restore;
     private int sel;
-    private final Paint shadow;
+    private final Paint shadowAmbient;
+    private final Paint shadowContact;
+    private final Paint glossPaint;
     private final float[] sizes;
     private boolean slid;
     private ObjectAnimator slide;
@@ -67,7 +74,7 @@ public final class NativeDock extends FrameLayout {
     private boolean visible;
     private final float zoom;
     private static final PathInterpolator EASE = new PathInterpolator(0.22f, 0.61f, 0.36f, 1.0f);
-    private static final PathInterpolator PILL_EASE = new PathInterpolator(0.2f, 0.8f, 0.2f, 1.0f);
+    private static final PathInterpolator PILL_EASE = new PathInterpolator(0.28f, 1.28f, 0.42f, 1.0f);
 
     NativeDock(Context context) {
         super(context);
@@ -77,18 +84,16 @@ public final class NativeDock extends FrameLayout {
             this.columnWidth = dp(340.0f);
         }
         this.tint = new Paint(1);
-        Paint paint = new Paint(1);
-        this.pill = paint;
-        Paint paint2 = new Paint(1);
-        this.shadow = paint2;
-        Paint paint3 = new Paint(1);
-        this.edge = paint3;
-        Paint paint4 = new Paint(1);
-        this.glyph = paint4;
-        Paint paint5 = new Paint(1);
-        this.badgeBg = paint5;
-        Paint paint6 = new Paint(1);
-        this.badgeText = paint6;
+        this.pill = new Paint(1);
+        this.pillShadow = new Paint(1);
+        this.pillRimPaint = new Paint(1);
+        this.shadowAmbient = new Paint(1);
+        this.shadowContact = new Paint(1);
+        this.glossPaint = new Paint(1);
+        this.edge = new Paint(1);
+        this.glyph = new Paint(1);
+        this.badgeBg = new Paint(1);
+        this.badgeText = new Paint(1);
         this.box = new RectF();
         this.tmp = new RectF();
         this.boxPath = new Path();
@@ -103,8 +108,8 @@ public final class NativeDock extends FrameLayout {
         this.visible = true;
         this.baseTint = -16753952;
         this.stateV = true;
-        this.restore = new Runnable() { // from class: com.zola.app.NativeDock$$ExternalSyntheticLambda1
-            @Override // java.lang.Runnable
+        this.restore = new Runnable() {
+            @Override
             public final void run() {
                 NativeDock.this.lambda$new$1();
             }
@@ -117,22 +122,21 @@ public final class NativeDock extends FrameLayout {
         float fTextZoom = Prefs.textZoom(context) / 100.0f;
         this.zoom = fTextZoom;
         setLayerType(2, null);
-        paint4.setTypeface(ZaloIcons.font(context));
-        paint4.setTextAlign(Paint.Align.CENTER);
-        paint6.setTypeface(Typeface.DEFAULT_BOLD);
-        paint6.setTextAlign(Paint.Align.CENTER);
-        paint6.setColor(-1);
-        paint6.setTextSize(10.0f * f * fTextZoom);
-        paint5.setColor(-1755077);
-        paint2.setColor(0);
-        // no shadow layer under dock
-        paint3.setStyle(Paint.Style.STROKE);
-        paint3.setStrokeWidth(f);
-        paint3.setColor(536870911);
-        applyOpacity();
-        paint4.setColor(-1);
-        paint.setColor(687865856);
+        this.glyph.setTypeface(ZaloIcons.font(context));
+        this.glyph.setTextAlign(Paint.Align.CENTER);
+        this.glyph.setColor(-1);
+        this.badgeText.setTypeface(Typeface.DEFAULT_BOLD);
+        this.badgeText.setTextAlign(Paint.Align.CENTER);
+        this.badgeText.setColor(-1);
+        this.badgeText.setTextSize(10.0f * f * fTextZoom);
+        this.badgeBg.setColor(-1755077);
+        this.pillShadow.setColor(0);
+        this.pillRimPaint.setStyle(Paint.Style.STROKE);
+        this.pillRimPaint.setStrokeWidth(0.85f * f);
+        this.edge.setStyle(Paint.Style.STROKE);
+        this.edge.setStrokeWidth(1.2f * f);
         setTranslationZ(1001.0f);
+        applyOpacity();
         apply(Prefs.sp(context).getString(SAVED, null), false);
     }
 
@@ -155,8 +159,52 @@ public final class NativeDock extends FrameLayout {
     }
 
     void applyOpacity() {
-        this.tint.setColor((Math.round(Math.max(0, Math.min(100, Prefs.dockOpacity(getContext()))) * 2.55f) << 24) | (this.baseTint & ViewCompat.MEASURED_SIZE_MASK));
+        updateGlassShaders();
         invalidate();
+    }
+
+    private void updateGlassShaders() {
+        if (this.box.isEmpty()) return;
+        boolean isDark = Color.luminance(this.baseTint) < 0.5f;
+        float userOpacity = Math.max(0.2f, Math.min(1.0f, Prefs.dockOpacity(getContext()) / 100.0f));
+
+        int topTint = isDark
+                ? Color.argb(Math.round(90 * userOpacity), 45, 52, 65)
+                : Color.argb(Math.round(110 * userOpacity), 255, 255, 255);
+        int botTint = isDark
+                ? Color.argb(Math.round(135 * userOpacity), 18, 22, 28)
+                : Color.argb(Math.round(90 * userOpacity), 225, 235, 245);
+
+        this.tint.setShader(new LinearGradient(
+                this.box.left, this.box.top,
+                this.box.left, this.box.bottom,
+                topTint, botTint,
+                Shader.TileMode.CLAMP));
+
+        int edgeTop = isDark ? 0xA0FFFFFF : 0xC8FFFFFF;
+        int edgeMid = isDark ? 0x38FFFFFF : 0x55FFFFFF;
+        int edgeBot = isDark ? 0x18FFFFFF : 0x25FFFFFF;
+        this.edge.setShader(new LinearGradient(
+                this.box.left, this.box.top,
+                this.box.left, this.box.bottom,
+                new int[]{edgeTop, edgeMid, edgeBot},
+                new float[]{0.0f, 0.4f, 1.0f},
+                Shader.TileMode.CLAMP));
+
+        this.glossPaint.setShader(new LinearGradient(
+                this.box.left, this.box.top + dp(2.0f),
+                this.box.left, this.box.top + dp(24.0f),
+                isDark ? 0x25FFFFFF : 0x40FFFFFF,
+                0x00FFFFFF,
+                Shader.TileMode.CLAMP));
+
+        this.shadowAmbient.setColor(0);
+        this.shadowAmbient.setShadowLayer(dp(16.0f), 0, dp(6.0f),
+                isDark ? Color.argb(70, 0, 0, 0) : Color.argb(38, 0, 16, 40));
+
+        this.shadowContact.setColor(0);
+        this.shadowContact.setShadowLayer(dp(5.0f), 0, dp(1.5f),
+                isDark ? Color.argb(55, 0, 0, 0) : Color.argb(22, 0, 10, 24));
     }
 
     void setColumnWidth(int w) {
@@ -419,21 +467,56 @@ public final class NativeDock extends FrameLayout {
         this.topLine.reset();
         this.topLine.op(this.boxPath, path, Path.Op.DIFFERENCE);
         this.pillX = btnLeft(this.sel);
+        updateGlassShaders();
     }
 
     @Override // android.view.ViewGroup, android.view.View
     protected void dispatchDraw(Canvas canvas) {
         float fHeight = this.box.height() / 2.0f;
-        // removed black shadow under dock pill
+        boolean isDark = Color.luminance(this.baseTint) < 0.5f;
+
+        // 1. Soft liquid glass ambient elevation shadow
+        canvas.save();
+        canvas.clipOutPath(this.boxPath);
+        canvas.drawRoundRect(this.box.left, this.box.top + dp(4.0f), this.box.right, this.box.bottom + dp(4.0f), fHeight, fHeight, this.shadowAmbient);
+        canvas.drawRoundRect(this.box.left, this.box.top + dp(1.5f), this.box.right, this.box.bottom + dp(1.5f), fHeight, fHeight, this.shadowContact);
+        canvas.restore();
+
+        // 2. Translucent frosted glass backdrop & refraction
         canvas.save();
         canvas.clipPath(this.boxPath);
         super.dispatchDraw(canvas);
         canvas.drawRoundRect(this.box, fHeight, fHeight, this.tint);
+
+        // 3. Curved optical liquid gloss reflection
+        float glossMargin = dp(4.0f);
+        this.tmp.set(this.box.left + glossMargin, this.box.top + dp(2.0f), this.box.right - glossMargin, this.box.top + dp(24.0f));
+        canvas.drawRoundRect(this.tmp, dp(12.0f), dp(12.0f), this.glossPaint);
+
+        // 4. Liquid Active Tab Pill (droplet lens)
         float f = this.pillX;
         if (f >= 0.0f && this.present[this.sel]) {
-            this.tmp.set(f, this.box.top + dp(4.0f), this.pillX + btnW(), this.box.top + dp(4.0f) + dp(48.0f));
+            float pLeft = f;
+            float pTop = this.box.top + dp(4.0f);
+            float pRight = f + btnW();
+            float pBottom = this.box.top + dp(52.0f);
+            this.tmp.set(pLeft, pTop, pRight, pBottom);
+
+            // Droplet shadow in track
+            canvas.drawRoundRect(this.tmp.left, this.tmp.top + dp(1.0f), this.tmp.right, this.tmp.bottom + dp(1.0f), dp(24.0f), dp(24.0f), this.pillShadow);
+
+            // Droplet body lens gradient
+            int pTopColor = isDark ? 0x3EFFFFFF : 0x5EFFFFFF;
+            int pBotColor = isDark ? 0x16FFFFFF : 0x24FFFFFF;
+            this.pill.setShader(new LinearGradient(pLeft, pTop, pLeft, pBottom, pTopColor, pBotColor, Shader.TileMode.CLAMP));
             canvas.drawRoundRect(this.tmp, dp(24.0f), dp(24.0f), this.pill);
+
+            // Droplet specular rim
+            this.pillRimPaint.setShader(new LinearGradient(pLeft, pTop, pLeft, pBottom, 0x78FFFFFF, 0x22FFFFFF, Shader.TileMode.CLAMP));
+            canvas.drawRoundRect(this.tmp, dp(24.0f), dp(24.0f), this.pillRimPaint);
         }
+
+        // 5. Icons & Badges
         Paint.FontMetrics fontMetrics = new Paint.FontMetrics();
         for (int i = 0; i < this.n; i++) {
             if (this.present[i]) {
@@ -449,16 +532,21 @@ public final class NativeDock extends FrameLayout {
                 drawBadge(canvas, str, fBtnLeft + (((f2 * f3) * f4) / 2.0f), fCenterY - (((f2 * f3) * f4) / 2.0f));
             }
         }
+
+        // 6. Top Specular Meniscus
         canvas.drawPath(this.topLine, edgeTop());
         canvas.restore();
-        canvas.drawRoundRect(this.box.left + (this.density / 2.0f), this.box.top + (this.density / 2.0f), this.box.right - (this.density / 2.0f), this.box.bottom - (this.density / 2.0f), fHeight, fHeight, this.edge);
+
+        // 7. Outer Refractive Edge Rim
+        float halfStroke = this.edge.getStrokeWidth() / 2.0f;
+        canvas.drawRoundRect(this.box.left + halfStroke, this.box.top + halfStroke, this.box.right - halfStroke, this.box.bottom - halfStroke, fHeight, fHeight, this.edge);
     }
 
     private Paint edgeTop() {
         if (this.topPaint == null) {
             Paint paint = new Paint(1);
             this.topPaint = paint;
-            paint.setColor(956301311);
+            paint.setColor(0xDEFFFFFF);
         }
         return this.topPaint;
     }

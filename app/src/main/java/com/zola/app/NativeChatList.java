@@ -252,7 +252,7 @@ public final class NativeChatList extends FrameLayout {
         addView(listView, new FrameLayout.LayoutParams(-1, -1));
         DockGlass dockGlass = new DockGlass(context);
         this.glass = dockGlass;
-        dockGlass.setVisibility(8);
+        dockGlass.setVisibility(Build.VERSION.SDK_INT >= 31 ? 0 : 8);
         Header header = new Header(context);
         this.header = header;
         addView(header, new FrameLayout.LayoutParams(-1, -2, 48));
@@ -1163,7 +1163,7 @@ public final class NativeChatList extends FrameLayout {
         if (dockGlass == null) {
             return;
         }
-        dockGlass.setVisibility((jSONArray == null || Build.VERSION.SDK_INT < 31) ? 8 : 0);
+        dockGlass.setVisibility(Build.VERSION.SDK_INT < 31 ? 8 : 0);
         this.glass.invalidate();
     }
 
