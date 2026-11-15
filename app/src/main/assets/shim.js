@@ -2461,28 +2461,84 @@
    */
   safe(function () {
     if (!mobile || !cfg.nativeList || window.opener || window.top !== window) return;
+    // ponytail: ceiling is regex filtering; upgrade path: parse nested customMsg schema when new types added.
+    function isValidText(s) {
+      if (!s || typeof s !== 'string') return false;
+      var str = s.trim();
+      if (!str) return false;
+      if (/^\[?(sendbubblemessage|bubblemessage|unsupported|message|null|undefined)\]?$/i.test(str)) return false;
+      if (/^(STR_MSG_|STR_PREVIEW_)/i.test(str)) return false;
+      if (str.indexOf('chưa hỗ trợ') >= 0) return false;
+      return true;
+    }
+    function isBadPreview(s) { return !isValidText(s); }
+    function stripArtificialBrackets(s) {
+      if (!s || typeof s !== 'string') return s;
+      var str = s.trim();
+      if (/^\[(Hình ảnh|Video|Sticker|Tệp tin|Tệp|Liên kết|Cuộc gọi|Cuộc gọi nhỡ|Tin nhắn thoại|Bài viết|Bình chọn|Thiệp|Danh thiếp|Vị trí|Tin nhắn)\]$/i.test(str)) return str;
+      var m = str.match(/^\[(.*)\]$/);
+      if (m && m[1]) {
+        var inner = m[1].trim();
+        if (isValidText(inner)) return inner;
+      }
+      return str;
+    }
     function extractFallbackText(t) {
       if (!t) return "";
-      if (typeof t === "string") return t;
-      if (t.title) return t.title;
-      if (t.description) return t.description;
-      if (t.params) {
-        if (typeof t.params === "string") {
-          try {
-            var p = JSON.parse(t.params);
-            if (p.title || p.description || p.content) return p.title || p.description || p.content;
-          } catch (e) {}
-        } else if (typeof t.params === "object") {
-          if (t.params.title || t.params.description || t.params.content) return t.params.title || t.params.description || t.params.content;
+      if (typeof t === 'string') return isValidText(t) ? stripArtificialBrackets(t) : "";
+      var d = t.plainText || t.msgText || t.preview || t.content || t.description || t.desc;
+      if (isValidText(d)) return stripArtificialBrackets(d);
+      if (isValidText(t.title)) return stripArtificialBrackets(t.title);
+      var p = t.params || (t.message && t.message.params);
+      if (typeof p === 'string') {
+        try { p = JSON.parse(p); } catch (e) { p = null; }
+      }
+      if (p && typeof p === 'object') {
+        if (p.customMsg && p.customMsg.msg) {
+          var cm = p.customMsg.msg;
+          var cmt = typeof cm === 'object' ? (cm.vi || cm.en || cm.vn || cm.text) : cm;
+          if (isValidText(cmt)) return stripArtificialBrackets(cmt);
         }
+        var bd = p.bundle_data || (p.item && p.item.bundle_data);
+        if (typeof bd === 'string') {
+          try { bd = JSON.parse(bd); } catch (e) { bd = null; }
+        }
+        if (bd && typeof bd === 'object') {
+          var post = bd.post || bd.item || (Array.isArray(bd.items) && bd.items[0]) || bd;
+          var bt = post.title || post.description || post.desc;
+          if (isValidText(bt)) return stripArtificialBrackets(bt);
+        }
+        if (isValidText(p.question)) return p.question;
+        if (isValidText(p.previewTxt)) return stripArtificialBrackets(p.previewTxt);
+        if (isValidText(p.previewText)) return stripArtificialBrackets(p.previewText);
+        if (isValidText(p.title)) return stripArtificialBrackets(p.title);
+        if (isValidText(p.description || p.desc)) return stripArtificialBrackets(p.description || p.desc);
+        if (isValidText(p.content || p.text)) return stripArtificialBrackets(p.content || p.text);
       }
       if (t.message) {
-        if (typeof t.message === "string") return t.message;
-        if (typeof t.message === "object") {
-          if (t.message.title || t.message.description || t.message.text) return t.message.title || t.message.description || t.message.text;
+        if (typeof t.message === 'string') {
+          if (isValidText(t.message)) return stripArtificialBrackets(t.message);
+          try {
+            var mj = JSON.parse(t.message);
+            if (mj && typeof mj === 'object') {
+              var mjt = extractFallbackText(mj);
+              if (isValidText(mjt)) return mjt;
+            }
+          } catch (e) {}
+        } else if (Array.isArray(t.message)) {
+          for (var i = 0; i < t.message.length; i++) {
+            var it = t.message[i];
+            if (it && (isValidText(it.title) || isValidText(it.description))) {
+              return stripArtificialBrackets(it.title || it.description);
+            }
+          }
+        } else if (typeof t.message === 'object') {
+          var md = t.message.description || t.message.desc || t.message.title || t.message.text || t.message.content;
+          if (isValidText(md)) return stripArtificialBrackets(md);
+          var mf = extractFallbackText(t.message);
+          if (isValidText(mf)) return mf;
         }
       }
-      if (t.content && typeof t.content === "string") return t.content;
       return "";
     }
 
@@ -2535,10 +2591,17 @@
             if (src.length < 20000 && src.indexOf('computedIcon') >= 0 && src.indexOf('isSystemicMessage') >= 0) {
               var rawFmt = ex[n];
               found.fmt = function (t, n) {
+                if (!t) return null;
+                if (t.messageType == null && t.msgType != null) t.messageType = t.msgType;
                 var res = rawFmt(t, n);
-                if (res && typeof res.message === 'string' && (res.message.indexOf('chưa hỗ trợ') >= 0 || res.message.indexOf('STR_MSG_NOT_SUPPORTED') >= 0)) {
+                if (res && typeof res.message === 'string' && (res.message.indexOf('chưa hỗ trợ') >= 0 || res.message.indexOf('STR_MSG_NOT_SUPPORTED') >= 0 || isBadPreview(res.message))) {
                   var fb = extractFallbackText(t);
-                  if (fb) res.message = '[' + fb + ']';
+                  if (fb) {
+                    res.message = fb;
+                  } else {
+                    var g = guessText(t);
+                    if (g && g.t) res.message = g.t;
+                  }
                 }
                 return res;
               };
@@ -2696,6 +2759,8 @@
       return typeof v === 'string' ? v.trim() : '';
     }
     function previewText(p) {
+      if (!p) return { t: '[Tin nhắn]', ic: '', miss: false };
+      if (p.messageType == null && p.msgType != null) p.messageType = p.msgType;
       if (Z.fmt) {
         try {
           var f = Z.fmt(p, { isSyncing: false, isSyncEnabled: false }) || {};
@@ -2705,32 +2770,59 @@
             (f.systemicMessageArgs || []).forEach(function (a, i) { s = s.split('%' + (i + 1) + '$s').join(a); });
           }
           var ic = f.computedIcon || f.icon || f.subIcon || '';
-          if (s) return { t: zEmoji(String(s).replace(/\s+/g, ' ').slice(0, 200)), ic: ic, miss: !!f.isMisscall };
+          if (typeof ic === 'object' && ic) ic = ic.svgIcon || ic.icon || '';
+          if (s && !isBadPreview(s)) return { t: zEmoji(stripArtificialBrackets(String(s)).replace(/\s+/g, ' ').slice(0, 200)), ic: ic, miss: !!f.isMisscall };
         } catch (e) { /* dùng cách đoán bên dưới */ }
       }
       return guessText(p);
     }
     function guessText(p) {
-      var m = p && p.message, t = '', ic = '';
-      if (typeof (p && p.plainText) === 'string' && p.plainText) t = p.plainText;
-      else if (typeof (p && p.preview) === 'string' && p.preview) t = p.preview;
-      else if (typeof m === 'string') t = m;
-      else if (m && typeof m === 'object') {
-        if (m.catId || m.stickerId) { t = '[Sticker]'; ic = 'sticker'; }
-        else if (m.title) t = m.title;
-        else if (m.thumb || /\.(jpe?g|png|gif|webp)/i.test(m.href || '') || m.url) { t = '[Hình ảnh]'; ic = 'picture'; }
-        else if (m.href) { t = '[Liên kết]'; ic = 'link'; }
+      if (!p) return { t: '[Tin nhắn]', ic: '', miss: false };
+      var fb = extractFallbackText(p);
+      var t = isValidText(fb) ? fb : '', ic = '';
+      var m = p.message;
+      if (!t) {
+        if (typeof p.plainText === 'string' && isValidText(p.plainText)) t = p.plainText;
+        else if (typeof p.preview === 'string' && isValidText(p.preview)) t = p.preview;
+        else if (typeof p.msgText === 'string' && isValidText(p.msgText)) t = p.msgText;
+        else if (typeof p.content === 'string' && isValidText(p.content)) t = p.content;
+        else if (typeof m === 'string' && isValidText(m)) t = m;
       }
-      if (!t || t === '[Tin nhắn]') {
-        var mt = String((p && (p.msgType || p.type)) || '').toLowerCase();
-        if (/photo|image|thumb/.test(mt)) { t = '[Hình ảnh]'; ic = 'picture'; }
-        else if (/video/.test(mt)) { t = '[Video]'; ic = 'video'; }
-        else if (/sticker|doodle/.test(mt)) { t = '[Sticker]'; ic = 'sticker'; }
-        else if (/voice|audio/.test(mt)) { t = '[Tin nhắn thoại]'; ic = 'voice'; }
-        else if (/file|doc/.test(mt)) { t = '[Tệp tin]'; ic = 'file'; }
-        else if (/link/.test(mt)) { t = '[Liên kết]'; ic = 'link'; }
-        else if (/call/.test(mt)) { t = '[Cuộc gọi]'; ic = 'Call'; }
+      if (m && typeof m === 'object') {
+        if (m.catId || m.stickerId) { t = t || '[Sticker]'; ic = ic || 'sticker'; }
+        else if (m.thumb || /\.(jpe?g|png|gif|webp)/i.test(m.href || '') || m.url) { t = t || '[Hình ảnh]'; ic = ic || 'picture'; }
+        else if (m.href) { t = t || '[Liên kết]'; ic = ic || 'link'; }
+        else if (m.action && /call/i.test(m.action)) { t = t || (/misscall/i.test(m.action) ? '[Cuộc gọi nhỡ]' : '[Cuộc gọi]'); ic = ic || 'Call'; }
       }
+      var mt = String(p.messageType || p.msgType || p.type || '').toLowerCase();
+      var act = String((m && m.action) || p.action || '').toLowerCase();
+      if (/call/.test(mt) || /call/.test(act)) {
+        if (!t || isBadPreview(t)) t = /misscall/.test(act) ? '[Cuộc gọi nhỡ]' : '[Cuộc gọi]';
+        ic = ic || 'Call';
+      } else if (/photo|image|thumb/.test(mt)) {
+        if (!t || isBadPreview(t)) t = '[Hình ảnh]';
+        ic = ic || 'picture';
+      } else if (/video/.test(mt)) {
+        if (!t || isBadPreview(t)) t = '[Video]';
+        ic = ic || 'video';
+      } else if (/sticker|doodle/.test(mt)) {
+        if (!t || isBadPreview(t)) t = '[Sticker]';
+        ic = ic || 'sticker';
+      } else if (/voice|audio/.test(mt)) {
+        if (!t || isBadPreview(t)) t = '[Tin nhắn thoại]';
+        ic = ic || 'voice';
+      } else if (/file|doc/.test(mt)) {
+        if (!t || isBadPreview(t)) t = '[Tệp tin]';
+        ic = ic || 'file';
+      } else if (/poll|vote/.test(mt)) {
+        if (!t || isBadPreview(t)) t = '[Bình chọn]';
+        ic = ic || 'poll';
+      } else if (/link/.test(mt)) {
+        if (!t || isBadPreview(t)) t = '[Liên kết]';
+        ic = ic || 'link';
+      }
+      if (!t || isBadPreview(t)) t = '[Tin nhắn]';
+      t = stripArtificialBrackets(t);
       if (!ic) {
         if (t === '[Hình ảnh]') ic = 'picture';
         else if (t === '[Video]') ic = 'video';
@@ -2738,10 +2830,9 @@
         else if (t === '[Tệp tin]') ic = 'file';
         else if (t === '[Liên kết]') ic = 'link';
         else if (t === '[Tin nhắn thoại]') ic = 'voice';
-        else if (t === '[Cuộc gọi]') ic = 'Call';
+        else if (t === '[Cuộc gọi]' || t === '[Cuộc gọi nhỡ]') ic = 'Call';
       }
-      if (!t) t = '[Tin nhắn]';
-      return { t: zEmoji(t.replace(/\s+/g, ' ').slice(0, 200)), ic: ic, miss: false };
+      return { t: zEmoji(t.replace(/\s+/g, ' ').slice(0, 200)), ic: ic, miss: t === '[Cuộc gọi nhỡ]' };
     }
 
     function findConvDataManager() {
@@ -2911,13 +3002,15 @@
           var name = (!c.isGroup && aliasOf(id)) || liveGroup || info.n || (id === me ? 'My Documents' : '') || (p && !c.isGroup && p.fromUid === id ? p.dName : '') || (lm && !c.isGroup && lm.fromUid === id ? lm.dName : '') || id;
           if (name === 'Truyền File') name = 'My Documents'; // tên nội bộ của My Documents, web hiện "My Documents"
           var text = '', icon = '', miss = false;
-          var isUnsupported = p && ((typeof p.message === 'string' && (p.message.indexOf('chưa hỗ trợ') >= 0 || p.message.indexOf('STR_MSG_NOT_SUPPORTED') >= 0)) || (typeof p.plainText === 'string' && (p.plainText.indexOf('chưa hỗ trợ') >= 0 || p.plainText.indexOf('STR_MSG_NOT_SUPPORTED') >= 0)));
+          var isUnsupported = p && (isBadPreview(p.message) || isBadPreview(p.plainText) || isBadPreview(p.preview));
           var activeMsg = (isUnsupported && lm) ? lm : (p || lm);
           if (activeMsg) {
             var pv = previewText(activeMsg);
             text = pv.t;
             icon = pv.ic;
             miss = pv.miss;
+            text = stripArtificialBrackets(text);
+            if (isBadPreview(text)) text = '[Tin nhắn]';
             var fromUid = activeMsg.fromUid || '';
             if (fromUid === me || fromUid === '0') text = 'Bạn: ' + text;
             else if (c.isGroup && (activeMsg.dName || fromUid)) {
@@ -3111,40 +3204,16 @@
         }
 
         // 3. P6UB: quoted / plain text fallback for unsupported rich messages
-        function extractFallbackText(t) {
-          if (!t) return "";
-          if (typeof t === "string") return t;
-          if (t.title) return t.title;
-          if (t.description) return t.description;
-          if (t.params) {
-            if (typeof t.params === "string") {
-              try {
-                var p = JSON.parse(t.params);
-                if (p.title || p.description || p.content) return p.title || p.description || p.content;
-              } catch (e) {}
-            } else if (typeof t.params === "object") {
-              if (t.params.title || t.params.description || t.params.content) return t.params.title || t.params.description || t.params.content;
-            }
-          }
-          if (t.message) {
-            if (typeof t.message === "string") return t.message;
-            if (typeof t.message === "object") {
-              if (t.message.title || t.message.description || t.message.text) return t.message.title || t.message.description || t.message.text;
-            }
-          }
-          if (t.content && typeof t.content === "string") return t.content;
-          return "";
-        }
-
         if (r.c["P6UB"] && r.c["P6UB"].exports && r.c["P6UB"].exports.default) {
           var pProto = Object.getPrototypeOf(r.c["P6UB"].exports.default);
           if (pProto && typeof pProto.getPlainText === "function" && !pProto.getPlainText.__zdPatched) {
             var origGetPlainText = pProto.getPlainText;
             var patchedGetPlainText = function (t, n, a) {
+              if (t && t.messageType == null && t.msgType != null) t.messageType = t.msgType;
               var res = origGetPlainText.call(this, t, n, a);
-              if (res && typeof res === "string" && (res.indexOf("chưa hỗ trợ") >= 0 || res.indexOf("STR_MSG_NOT_SUPPORTED") >= 0)) {
+              if (res && typeof res === "string" && isBadPreview(res)) {
                 var fb = extractFallbackText(t);
-                if (fb) return "[" + fb + "]";
+                if (fb) return fb;
               }
               return res;
             };

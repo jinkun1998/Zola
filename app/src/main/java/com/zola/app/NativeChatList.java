@@ -454,7 +454,7 @@ public final class NativeChatList extends FrameLayout {
                 item2.name = jSONObject.optString("n");
                 item2.avatar = jSONObject.optString("a");
                 item2.time = jSONObject.optLong("t");
-                item2.text = jSONObject.optString("m");
+                item2.text = cleanPreview(jSONObject.optString("m"));
                 item2.unread = jSONObject.optInt("u");
                 item2.mention = jSONObject.optInt("at");
                 item2.unreadDot = jSONObject.optInt("ud");
@@ -1366,6 +1366,25 @@ public final class NativeChatList extends FrameLayout {
         this.header.animate().cancel();
         this.listView.setTranslationY(0.0f);
         this.header.setTranslationY(0.0f);
+    }
+
+    // ponytail: ceiling is pre-sanitized bridge JSON; upgrade path: drop once cached convlist files rollover.
+    public static String cleanPreview(String text) {
+        if (text == null) return "";
+        String s = text.trim();
+        if (s.matches("(?i).*\\[?(sendbubblemessage|bubblemessage|unsupported|message)\\]?$") || s.contains("ch\u01b0a h\u1ed7 tr\u1ee3")) {
+            s = s.replaceAll("(?i)\\[?(sendbubblemessage|bubblemessage|unsupported|message)\\]?", "[Tin nh\u1eafn]");
+            s = s.replaceAll("\\[?Tin nh\u1eafn ch\u01b0a h\u1ed7 tr\u1ee3 \u1edf phi\u00ean b\u1ea3n hi\u1ec7n t\u1ea1i\\]?", "[Tin nh\u1eafn]");
+        }
+        Matcher m = Pattern.compile("^(.*?\\[)(.*?)(\\])$").matcher(s);
+        if (m.find()) {
+            String prefix = m.group(1);
+            String inner = m.group(2).trim();
+            if (!inner.matches("(?i)^(H\u00ecnh \u1ea3nh|Video|Sticker|T\u1ec7p tin|T\u1ec7p|Li\u00ean k\u1ebft|Cu\u1ed9c g\u1ecdi|Cu\u1ed9c g\u1ecdi nh\u1ee1|Tin nh\u1eafn tho\u1ea1i|B\u00e0i vi\u1ebft|B\u00ecnh ch\u1ecdn|Thi\u1ec7p|Danh thi\u1ebfp|V\u1ecb tr\u00ed|Tin nh\u1eafn)$")) {
+                s = prefix.startsWith("[") ? inner : prefix.substring(0, prefix.length() - 1) + inner;
+            }
+        }
+        return s;
     }
 
     public static boolean isEmptyConversation(int unread, String text) {
