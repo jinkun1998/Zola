@@ -83,6 +83,20 @@
 
   var api = {};
   Object.defineProperty(window, '__zw', { value: api, configurable: false, enumerable: false, writable: false });
+  function closeMenus() {
+    var t = document.activeElement || document.body;
+    ['keydown', 'keyup'].forEach(function (type) {
+      t.dispatchEvent(new KeyboardEvent(type, { key: 'Escape', code: 'Escape', keyCode: 27, which: 27,
+        bubbles: true, cancelable: true }));
+    });
+    ['mousedown', 'mouseup'].forEach(function (type) {
+      document.body.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
+    });
+    var pops = document.querySelectorAll('body > .popover-v3.zd-conv-pop');
+    [].forEach.call(pops, function (p) { p.remove(); });
+    if (api.convFocusEnd) api.convFocusEnd();
+  }
+  api.closeMenus = closeMenus;
   var activeDockKey = ''; // theo dõi nút dock đang active (KEY_NAME_SEND2ME, STR_TAB_MESSAGE, STR_TAB_CONTACT)
   var cachedSendToMeId = ''; // cache sendToMeId từ webpack module NDmK
   function getSendToMeId() {
@@ -662,12 +676,8 @@
       }
       var sm = document.getElementById('zd-share-menu');
       if (sm && sm.classList.contains('zd-on')) { sm.classList.remove('zd-on'); return true; }
-      if (top('.zmenu-body, .context-menu, .popover-v3, .popover, .dropdown__list')) {
-        // Menu của Zalo đóng khi bấm Esc hoặc bấm ra ngoài.
-        escape();
-        ['mousedown', 'mouseup'].forEach(function (type) {
-          document.body.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
-        });
+      if (top('.zmenu-body, .context-menu, .popover-v3, .popover, .dropdown__list, #zd-focus-scrim')) {
+        closeMenus();
         return true;
       }
       // Hộp thoại có thể mở chồng lên trình xem ảnh (chuyển tiếp ảnh): đóng hộp thoại trước.
@@ -3431,11 +3441,13 @@
       focusEnd(true);
       var s = document.createElement('div');
       s.id = 'zd-focus-scrim';
-      s.addEventListener('pointerdown', function (e) {
-        e.stopPropagation();
-        e.preventDefault();
-        safe(closeMenus);
-      }, true);
+      ['pointerdown', 'touchstart', 'mousedown'].forEach(function (ev) {
+        s.addEventListener(ev, function (e) {
+          e.stopPropagation();
+          e.preventDefault();
+          safe(closeMenus);
+        }, true);
+      });
       document.body.appendChild(s);
       s.getBoundingClientRect();
       s.classList.add('on');
@@ -3443,6 +3455,8 @@
     }
     /** Menu đóng: nền phủ mờ đi rồi gỡ. */
     function focusEnd(now) {
+      var pops = document.querySelectorAll('body > .popover-v3.zd-conv-pop');
+      [].forEach.call(pops, function (p) { p.remove(); });
       if (!focus) return;
       var f = focus;
       focus = null;
@@ -3923,12 +3937,7 @@
       }
       return null;
     }
-    function closeMenus() {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
-      ['mousedown', 'mouseup'].forEach(function (type) {
-        document.body.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
-      });
-    }
+
 
     function ghost(pop, rect) {
       if (!rect || !rect.width) return;
