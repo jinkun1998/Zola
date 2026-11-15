@@ -92,7 +92,7 @@ class JsBridge(
     }
 
     @JavascriptInterface
-    fun showNotification(token: String?, id: String?, title: String?, body: String?, icon: String?, tag: String?, silent: Boolean) {
+    fun showNotification(token: String?, id: String?, title: String?, body: String?, tag: String?, icon: String?, silent: Boolean) {
         if (!ok(token)) return
         Notifier.show(mainActivity, id, title, body, tag, icon, silent)
     }

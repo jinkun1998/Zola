@@ -47,6 +47,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private var pendingWebPermission: PermissionRequest? = null
+    private var isPageReady = false
+    private var pendingIntent: Intent? = null
+    private var pendingNotifPermCallbackId: String? = null
 
     private val scriptOrigins = setOf(
         "https://zalo.me", "https://*.zalo.me",
@@ -468,12 +471,19 @@ class MainActivity : AppCompatActivity() {
 
     fun onPageReady() {
         Log.d("Zola", "Zalo web page ready")
+        isPageReady = true
         nativeList.boot(false)
         webView.evaluateJavascript("window.__zw && window.__zw.nativeReady && window.__zw.nativeReady(true); window.__zw && window.__zw.requestConvList && window.__zw.requestConvList(); window.__zw && window.__zw.nativeDock && window.__zw.nativeDock(true);", null)
+        pendingIntent?.let {
+            val pending = it
+            pendingIntent = null
+            handleIntent(pending)
+        }
     }
 
     fun onConvList(json: String) {
         nativeList.setData(json)
+        Notifier.syncRead(this, json)
     }
 
     fun onNativeLayout(json: String, wv: ZaloWebView) {
@@ -526,6 +536,7 @@ class MainActivity : AppCompatActivity() {
         nativeList.setSelectedId(id)
         if (!id.isNullOrEmpty()) {
             setChatOpen(true)
+            Notifier.clearConversation(this, id)
         }
     }
 
@@ -583,10 +594,12 @@ class MainActivity : AppCompatActivity() {
         visible = true
         KeepAliveService.start(this)
         Notifier.cancelCallAlert(this)
+        WebViewHolder.evalMain("window.__zw&&window.__zw.setHidden&&window.__zw.setHidden(false)")
     }
 
     override fun onStop() {
         visible = false
+        WebViewHolder.evalMain("window.__zw&&window.__zw.setHidden&&window.__zw.setHidden(true)")
         super.onStop()
     }
 
@@ -598,6 +611,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleIntent(intent: Intent?) {
         if (intent == null) return
+        if (!isPageReady) {
+            pendingIntent = Intent(intent)
+            return
+        }
         if ((intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) == 0) {
             val act = intent.action
             if (act == ACTION_RELOAD || act == "com.zola.app.RELOAD") {
@@ -605,14 +622,22 @@ class MainActivity : AppCompatActivity() {
             }
         }
         val clickId = intent.getStringExtra("zw_click_id")
+        val convId = intent.getStringExtra("zw_conv")
+        if (!convId.isNullOrEmpty()) {
+            nativeList.setSelectedId(convId)
+            setChatOpen(true)
+            Notifier.clearConversation(this, convId)
+        }
         if (clickId != null) {
             intent.removeExtra("zw_click_id")
-            WebViewHolder.evalMain("window.__zw&&window.__zw.click(" + org.json.JSONObject.quote(clickId) + ")")
-        }
-        val convId = intent.getStringExtra("zw_conv")
-        if (convId != null && convId.isNotEmpty()) {
+            val fallback = if (!convId.isNullOrEmpty()) {
+                intent.removeExtra("zw_conv")
+                "window.__zw&&window.__zw.openConv&&window.__zw.openConv(" + org.json.JSONObject.quote(convId) + ");window.__zw&&window.__zw.mobileChat&&window.__zw.mobileChat();"
+            } else ""
+            WebViewHolder.evalMain("if (!window.__zw || !window.__zw.click || !window.__zw.click(" + org.json.JSONObject.quote(clickId) + ")) { " + fallback + " }")
+        } else if (!convId.isNullOrEmpty()) {
             intent.removeExtra("zw_conv")
-            WebViewHolder.evalMain("window.__zw&&window.__zw.openConv&&window.__zw.openConv(" + org.json.JSONObject.quote(convId) + ")")
+            WebViewHolder.evalMain("window.__zw&&window.__zw.openConv&&window.__zw.openConv(" + org.json.JSONObject.quote(convId) + ");window.__zw&&window.__zw.mobileChat&&window.__zw.mobileChat();")
         }
     }
 
@@ -645,7 +670,15 @@ class MainActivity : AppCompatActivity() {
 
     fun requestNotificationPermission(callbackId: String? = null) {
         if (Build.VERSION.SDK_INT >= 33) {
-            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                pendingNotifPermCallbackId = callbackId
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
+                return
+            }
+        }
+        val state = Notifier.permissionState(this)
+        if (!callbackId.isNullOrEmpty()) {
+            WebViewHolder.evalMain("window.__zw&&window.__zw.permResult&&window.__zw.permResult(" + org.json.JSONObject.quote(callbackId) + ", " + org.json.JSONObject.quote(state) + ")")
         }
     }
 
@@ -653,6 +686,12 @@ class MainActivity : AppCompatActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 1) {
             Prefs.put(this, "notif_asked", true)
+            val cb = pendingNotifPermCallbackId
+            pendingNotifPermCallbackId = null
+            if (!cb.isNullOrEmpty()) {
+                val state = Notifier.permissionState(this)
+                WebViewHolder.evalMain("window.__zw&&window.__zw.permResult&&window.__zw.permResult(" + org.json.JSONObject.quote(cb) + ", " + org.json.JSONObject.quote(state) + ")")
+            }
             maybeAskBattery()
         } else if (requestCode == 102) {
             val req = pendingWebPermission

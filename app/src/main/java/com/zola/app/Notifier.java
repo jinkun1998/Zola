@@ -21,6 +21,7 @@ import android.service.notification.StatusBarNotification;
 import android.util.Base64;
 import android.util.Log;
 import androidx.core.app.NotificationCompat;
+import java.io.File;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -64,41 +65,46 @@ final class Notifier {
         return "denied";
     }
 
-    static void show(final Context context, final String str, String str2, String str3, final String str4, final String str5, final boolean z) {
-        int iNextId;
-        final String str6 = str2 == null ? "" : str2;
-        final String str7 = str3 == null ? "" : str3;
-        final boolean z2 = Prefs.callAlerts(context) && CALL_TEXT.matcher(new StringBuilder().append(str6).append("\n").append(str7).toString()).find();
-        if (z2) {
-            iNextId = 2;
+    static void show(final Context context, final String jsId, String title, String body, final String tag, final String iconUrl, final boolean silent) {
+        int notifId;
+        final String safeTitle = title == null ? "" : title;
+        final String safeBody = body == null ? "" : body;
+        final boolean isCall = Prefs.callAlerts(context) && CALL_TEXT.matcher(safeTitle + "\n" + safeBody).find();
+        if (isCall) {
+            notifId = CALL_ID;
         } else {
-            iNextId = (str4 == null || str4.isEmpty()) ? nextId() : idForTag(str4);
+            notifId = (tag == null || tag.isEmpty()) ? nextId() : idForTag(tag);
         }
-        final int i = iNextId;
-        if (!z2 && str4 != null && !str4.isEmpty()) {
-            shownConv.put(str4, Boolean.valueOf(Boolean.TRUE.equals(lastUnread.get(str4))));
+        final int id = notifId;
+        if (!isCall && tag != null && !tag.isEmpty()) {
+            shownConv.put(tag, Boolean.TRUE);
+            if (tag.startsWith("g")) {
+                shownConv.put(tag.substring(1), Boolean.TRUE);
+            } else {
+                shownConv.put("g" + tag, Boolean.TRUE);
+            }
         }
-        if (str != null) {
+        if (jsId != null) {
             Map<String, Integer> map = idByJsId;
             if (map.size() > 500) {
                 map.clear();
             }
-            map.put(str, Integer.valueOf(i));
+            map.put(jsId, Integer.valueOf(id));
         }
-        DiagLog.add("android notification posted" + (z2 ? " (call)" : "") + (MainActivity.visible ? " while app open" : ""));
-        App.IO.execute(() -> Notifier.doShowNotification(str5, z2, str, context, i, str6, str7, z, str4));
+        DiagLog.add("android notification posted" + (isCall ? " (call)" : "") + (MainActivity.visible ? " while app open" : ""));
+        App.IO.execute(() -> Notifier.doShowNotification(iconUrl, isCall, jsId, context, id, safeTitle, safeBody, silent, tag));
     }
 
-    static /* synthetic */ void doShowNotification(String str, boolean z, String str2, Context context, int i, String str3, String str4, boolean z2, String str5) {
-        Bitmap bitmapLoadIcon = loadIcon(str);
-        if (z) {
-            if ((str2 == null || !cancelledCalls.remove(str2)) && !MainActivity.visible) {
-                post(context, i, buildCall(context, str3, str4, bitmapLoadIcon, true));
+    static /* synthetic */ void doShowNotification(String iconUrl, boolean isCall, String jsId, Context context, int id, String title, String body, boolean silent, String tag) {
+        Bitmap bitmapLoadIcon = loadIcon(context, iconUrl);
+        if (isCall) {
+            if ((jsId == null || !cancelledCalls.remove(jsId)) && !MainActivity.visible) {
+                post(context, id, buildCall(context, title, body, bitmapLoadIcon, true));
                 return;
             }
             return;
         }
-        post(context, i, buildMessage(context, str2, str3, str4, bitmapLoadIcon, z2, i, str5));
+        post(context, id, buildMessage(context, jsId, title, body, bitmapLoadIcon, silent, id, tag));
     }
 
     static void cancel(Context context, String str) {
@@ -133,6 +139,15 @@ final class Notifier {
         if (str == null || str.isEmpty()) {
             return;
         }
+        clearById(context, str);
+        if (str.startsWith("g")) {
+            clearById(context, str.substring(1));
+        } else {
+            clearById(context, "g" + str);
+        }
+    }
+
+    private static void clearById(Context context, String str) {
         final int iIdForTag = idForTag(str);
         cancelKeepBubble(context, iIdForTag);
         idByJsId.values().removeIf(obj -> Notifier.matchesConversationId(iIdForTag, (Integer) obj));
@@ -195,18 +210,9 @@ final class Notifier {
                     lastUnread.put(strOptString, Boolean.valueOf(z));
                     groupConv.put(strOptString, Boolean.valueOf(jSONObjectOptJSONObject.optBoolean("g")));
                     convInfo.put(strOptString, new String[]{jSONObjectOptJSONObject.optString("n"), jSONObjectOptJSONObject.optString("a"), jSONObjectOptJSONObject.optString("m")});
-                    Map<String, Boolean> map = shownConv;
-                    Boolean bool = map.get(strOptString);
-                    if (bool != null) {
-                        if (z) {
-                            if (!bool.booleanValue()) {
-                                map.put(strOptString, true);
-                            }
-                        } else if (bool.booleanValue()) {
-                            map.remove(strOptString);
-                            final int iIdForTag = idForTag(strOptString);
-                            cancelKeepBubble(context, iIdForTag);
-                            idByJsId.values().removeIf(obj -> Notifier.matchesReadSyncId(iIdForTag, (Integer) obj));
+                    if (!z) {
+                        if (shownConv.containsKey(strOptString) || (strOptString.startsWith("g") ? shownConv.containsKey(strOptString.substring(1)) : shownConv.containsKey("g" + strOptString))) {
+                            clearConversation(context, strOptString);
                             DiagLog.add("notification cleared: conversation read on another device");
                         }
                     }
@@ -246,7 +252,11 @@ final class Notifier {
     }
 
     private static Notification buildMessage(Context context, String str, String str2, String str3, Bitmap bitmap, boolean z, int i, String str4) {
-        Notification.Builder contentIntent = new Notification.Builder(context, z ? "messages_silent" : "messages").setSmallIcon(R.drawable.ic_stat_message).setColor(ZALO_BLUE).setContentTitle(str2.isEmpty() ? context.getString(R.string.app_name) : str2).setContentText(str3).setStyle(new Notification.BigTextStyle().bigText(str3)).setCategory(NotificationCompat.CATEGORY_MESSAGE).setShowWhen(true).setWhen(System.currentTimeMillis()).setAutoCancel(true).setContentIntent(PendingIntent.getActivity(context, i, new Intent(context, (Class<?>) MainActivity.class).addFlags(268435456).putExtra("zw_click_id", str), 201326592));
+        Intent tapIntent = new Intent(context, (Class<?>) MainActivity.class)
+                .addFlags(268435456)
+                .putExtra("zw_click_id", str)
+                .putExtra("zw_conv", str4);
+        Notification.Builder contentIntent = new Notification.Builder(context, z ? "messages_silent" : "messages").setSmallIcon(R.drawable.ic_stat_message).setColor(ZALO_BLUE).setContentTitle(str2.isEmpty() ? context.getString(R.string.app_name) : str2).setContentText(str3).setStyle(new Notification.BigTextStyle().bigText(str3)).setCategory(NotificationCompat.CATEGORY_MESSAGE).setShowWhen(true).setWhen(System.currentTimeMillis()).setAutoCancel(true).setContentIntent(PendingIntent.getActivity(context, i, tapIntent, 201326592));
         if (bitmap != null) {
             contentIntent.setLargeIcon(bitmap);
         }
@@ -287,7 +297,7 @@ final class Notifier {
     }
 
     static /* synthetic */ void doBubbleForConversation(String str, Context context, String str2, int i, String str3, String str4) {
-        Bitmap bitmapLoadIcon = loadIcon(str);
+        Bitmap bitmapLoadIcon = loadIcon(context, str);
         Notification.Builder contentIntent = new Notification.Builder(context, "chat_bubble").setSmallIcon(R.drawable.ic_stat_message).setColor(ZALO_BLUE).setContentTitle(str3).setContentText(str4).setCategory(NotificationCompat.CATEGORY_MESSAGE).setOnlyAlertOnce(true).setAutoCancel(true).setContentIntent(PendingIntent.getActivity(context, i, new Intent(context, (Class<?>) MainActivity.class).addFlags(268435456).putExtra("zw_conv", str2), 201326592));
         if (bitmapLoadIcon != null) {
             contentIntent.setLargeIcon(bitmapLoadIcon);
@@ -362,7 +372,8 @@ final class Notifier {
     }
 
     /* JADX WARN: Code duplicated, block: B:33:0x007d  */
-    private static Bitmap loadIcon(String str) {
+    // ponytail: ceiling is cache-first + http fallback; upgrade path: inject coil/glide if animated WebP avatars needed.
+    private static Bitmap loadIcon(Context context, String str) {
         Bitmap bitmapDecodeByteArray;
         if (str == null || str.isEmpty()) {
             return null;
@@ -376,11 +387,19 @@ final class Notifier {
                     byte[] bArrDecode = Base64.decode(str.substring(iIndexOf + 1), 0);
                     bitmapDecodeByteArray = BitmapFactory.decodeByteArray(bArrDecode, 0, bArrDecode.length);
                 }
-            } else if (str.startsWith("https://")) {
+            } else if (str.startsWith("https://") || str.startsWith("http://")) {
+                if (context != null) {
+                    File cached = new File(new File(context.getCacheDir(), "avatars"), Integer.toHexString(str.hashCode()) + ".img");
+                    if (cached.exists()) {
+                        Bitmap cachedBmp = BitmapFactory.decodeFile(cached.getAbsolutePath());
+                        if (cachedBmp != null) return circle(cachedBmp, 160);
+                    }
+                }
                 HttpURLConnection httpURLConnection = (HttpURLConnection) new URL(str).openConnection();
                 httpURLConnection.setConnectTimeout(4000);
                 httpURLConnection.setReadTimeout(4000);
                 httpURLConnection.setRequestProperty("User-Agent", WebViewHolder.userAgent);
+                httpURLConnection.setRequestProperty("Referer", "https://chat.zalo.me/");
                 try {
                     InputStream inputStream = httpURLConnection.getInputStream();
                     try {
