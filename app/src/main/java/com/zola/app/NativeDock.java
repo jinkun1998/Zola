@@ -607,7 +607,7 @@ public final class NativeDock extends FrameLayout {
 
     private void tap(int i) {
         performHapticFeedback(4);
-        if (i != this.sel && ("STR_TAB_CONTACT".equals(this.keys[i]) || "STR_TAB_MESSAGE".equals(this.keys[i]))) {
+        if (i != this.sel && i >= 0 && i < this.n && !"STR_LEFT_SIDEBAR_ZALO_CLOUD".equals(this.keys[i]) && !"STR_TOOLS".equals(this.keys[i])) {
             moveTo(i, true);
         }
         this.last = null;

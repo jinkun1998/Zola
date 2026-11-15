@@ -83,6 +83,24 @@
 
   var api = {};
   Object.defineProperty(window, '__zw', { value: api, configurable: false, enumerable: false, writable: false });
+  var activeDockKey = ''; // theo dõi nút dock đang active (KEY_NAME_SEND2ME, STR_TAB_MESSAGE, STR_TAB_CONTACT)
+  var cachedSendToMeId = ''; // cache sendToMeId từ webpack module NDmK
+  function getSendToMeId() {
+    if (cachedSendToMeId) return cachedSendToMeId;
+    try {
+      var jp = window.webpackJsonp, r = null;
+      if (!jp || typeof jp.push !== 'function') return '';
+      var id = 'zd_s2m_' + Date.now(), mods = {};
+      mods[id] = function (m, e, req) { r = req; };
+      jp.push([[id], mods, [[id]]]);
+      var mod = r && r('NDmK');
+      if (mod && mod.default && mod.default.sendToMeId) {
+        cachedSendToMeId = String(mod.default.sendToMeId);
+        return cachedSendToMeId;
+      }
+    } catch (e) {}
+    return '';
+  }
   api.setWide = function (w) {
     cfgWide = !!w;
     var root = document.documentElement;
@@ -615,6 +633,8 @@
     leaving = true;
     m.classList.add('zd-leave');
     setTimeout(function () { leaving = false; go(); m.classList.remove('zd-leave'); }, 190);
+    activeDockKey = 'STR_TAB_MESSAGE';
+    if (api.syncDock) api.syncDock();
     return true;
   };
   api.mobileChat = function () { if (mobile) setChat(true); };
@@ -1892,15 +1912,41 @@
       var m = i && /\bfa-(\d+|N)(_Plus)?_24/.exec(i.className);
       return m ? m[1] + (m[2] ? '+' : '') : '.';
     }
+    // Trigger React fiber onClick cho nút bị ẩn (visibility: hidden)
+    function clickTab(b) {
+      if (!b) return;
+      var fk = Object.keys(b).filter(function (x) { return x.indexOf('__react') === 0; })[0];
+      for (var f = fk && b[fk]; f; f = f.return) {
+        if (f.memoizedProps && typeof f.memoizedProps.onClick === 'function') {
+          try { f.memoizedProps.onClick({ stopPropagation: function(){}, preventDefault: function(){} }); break; } catch (e) {}
+        }
+      }
+      try { b.click(); } catch (e) {}
+    }
     function syncDock() {
       var root = document.documentElement, tab = document.getElementById('main-tab');
       if (!tab || !M.ok) return; // trang chưa dựng xong: app giữ dock lần trước (mở app), màn đăng nhập thì app tự ẩn
+      var webSelKey = '';
+      dockKeys().forEach(function (dk, idx) {
+        var btn = dockButton(idx);
+        if (btn && btn.classList.contains('selected')) webSelKey = dk;
+      });
+      var selectedKey = activeDockKey || webSelKey || 'STR_TAB_MESSAGE';
       var color = '', items = dockKeys().map(function (k, n) {
         var b = dockButton(n), i = b && (b.querySelector('i.internal-icon') || b.querySelector('i.fa:not(.z-noti-badge i)'));
         if (!i) return null;
         var ic = [].filter.call(i.classList, function (c) { return c.indexOf('fa-') === 0; })[0] || '';
         if (!color) color = getComputedStyle(i).color;
-        return [ic.slice(3), tabBadge(b), b.classList.contains('selected') ? 1 : 0, parseFloat(getComputedStyle(i).fontSize) || 28, k];
+        var isSel = (k === selectedKey);
+        var iconName = ic.slice(3);
+        if (k === 'KEY_NAME_SEND2ME') {
+          iconName = isSel ? 'MyDocs_24_Filled' : 'MyDocs_24_Line';
+        } else if (k === 'STR_TAB_MESSAGE') {
+          iconName = isSel ? 'Message_28_Filled' : 'Message_28_Line';
+        } else if (k === 'STR_TAB_CONTACT') {
+          iconName = isSel ? 'Contact_28_Filled' : 'Contact_28_Line';
+        }
+        return [iconName, tabBadge(b), isSel ? 1 : 0, parseFloat(getComputedStyle(i).fontSize) || 28, k];
       });
       var searching = root.classList.contains('zd-searching');
       // Hộp thoại, trình xem ảnh, menu giữ lâu (#zd-focus) phủ lên dock của trang: dock native (nằm trên) cũng phải ẩn.
@@ -1954,8 +2000,26 @@
     }
     api.dockTap = function (i) {
       var b = dockButton(i), k = dockKeys()[i];
-      if (k === 'STR_LEFT_SIDEBAR_ZALO_CLOUD' || k === 'STR_TOOLS') placeDockPopover(k);
-      if (b) b.click();
+      if (k === 'STR_LEFT_SIDEBAR_ZALO_CLOUD' || k === 'STR_TOOLS') {
+        placeDockPopover(k);
+      } else if (k === 'KEY_NAME_SEND2ME') {
+        activeDockKey = 'KEY_NAME_SEND2ME';
+        var s2m = getSendToMeId();
+        if (s2m) {
+          api.openConv(s2m);
+          if (!isWide() && !M.chat) api.mobileChat();
+        }
+        if (b) clickTab(b);
+      } else if (k === 'STR_TAB_MESSAGE') {
+        activeDockKey = 'STR_TAB_MESSAGE';
+        if (!isWide() && M.chat) api.mobileHome();
+        if (b) clickTab(b);
+      } else if (k === 'STR_TAB_CONTACT') {
+        activeDockKey = 'STR_TAB_CONTACT';
+        if (b) clickTab(b);
+      } else {
+        if (b) clickTab(b);
+      }
       // App đã cho viên thuốc trượt trước: báo lại trạng thái thật kể cả khi Zalo không đổi tab.
       setTimeout(function () { lastDock = ''; safe(syncDock); }, 300);
     };
@@ -3133,6 +3197,12 @@
     };
     api.openConv = function (id) {
       var sid = String(id);
+      var s2m = getSendToMeId();
+      if (s2m && sid === s2m) {
+        activeDockKey = 'KEY_NAME_SEND2ME';
+      } else {
+        activeDockKey = 'STR_TAB_MESSAGE';
+      }
       var z = findZalo();
       var conv = (z && z.info && z.info.getConvByIdSync) ? z.info.getConvByIdSync(sid) : null;
       if (!conv && sid.indexOf('g') === 0) {
@@ -3153,7 +3223,7 @@
         var opts = conv ? { force: true, credentConv: conv, defaultConv: conv } : undefined;
         z.conv.openConversation(sid, opts).then(function (ok) { if (!ok) diag('native list: open conv refused'); });
       }
-      setTimeout(function () { if (M.sync) M.sync(); }, 150);
+      setTimeout(function () { if (M.sync) M.sync(); if (api.syncDock) api.syncDock(); }, 150);
     };
     api.syncAll = function () {
       var z = findZalo();
