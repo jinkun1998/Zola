@@ -36,6 +36,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var nativeDock: NativeDock
     private lateinit var welcomeView: WelcomeView
     private var chatOpen: Boolean = false
+    private var nativeOn: Boolean = true
 
     private val bridgeToken = UUID.randomUUID().toString()
     private lateinit var fullScript: String
@@ -242,7 +243,7 @@ class MainActivity : AppCompatActivity() {
         webView.passRight = colW
         if (isWide) {
             nativeList.translationZ = 1000f
-            if (::welcomeView.isInitialized) welcomeView.translationZ = 999f
+            if (::welcomeView.isInitialized) welcomeView.translationZ = if (nativeOn) 999f else -1f
             webView.setBackgroundColor(0)
         } else {
             nativeList.translationZ = 0f
@@ -455,7 +456,7 @@ class MainActivity : AppCompatActivity() {
 
         if (nativeList.columnWidth > 0) {
             nativeList.translationZ = 1000f
-            welcomeView.translationZ = 999f
+            welcomeView.translationZ = if (nativeOn) 999f else -1f
             webView.passRight = nativeList.columnWidth
             webView.setBackgroundColor(0)
         }
@@ -490,17 +491,16 @@ class MainActivity : AppCompatActivity() {
     fun onNativeLayout(json: String, wv: ZaloWebView) {
         nativeList.setLayout(json, wv)
         nativeDock.setColumnWidth(nativeList.columnWidth)
+        val obj = try { JSONObject(json) } catch (_: Exception) { null }
+        nativeOn = obj?.optBoolean("on", false) ?: false
         if (::welcomeView.isInitialized) {
             val lp = welcomeView.layoutParams as? FrameLayout.LayoutParams
             if (lp != null && lp.leftMargin != nativeList.columnWidth) {
                 lp.leftMargin = nativeList.columnWidth
                 welcomeView.layoutParams = lp
             }
-            try {
-                val obj = JSONObject(json)
-                val pass = obj.optBoolean("pass", true)
-                welcomeView.translationZ = if (pass && nativeList.columnWidth > 0) 999f else -1f
-            } catch (_: Exception) {}
+            val pass = obj?.optBoolean("pass", true) ?: true
+            welcomeView.translationZ = if (pass && nativeList.columnWidth > 0 && nativeOn) 999f else -1f
             updateWelcomeVisibility()
         }
     }
@@ -553,7 +553,7 @@ class MainActivity : AppCompatActivity() {
     fun updateWelcomeVisibility() {
         if (!::welcomeView.isInitialized) return
         val isWide = nativeList.columnWidth > 0
-        welcomeView.visibility = if (isWide && !chatOpen) View.VISIBLE else View.GONE
+        welcomeView.visibility = if (isWide && nativeOn && !chatOpen) View.VISIBLE else View.GONE
     }
 
     fun setChatOpen(open: Boolean) {

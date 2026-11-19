@@ -1016,8 +1016,8 @@ public final class NativeChatList extends FrameLayout {
             this.endingBoot = false;
             if (this.columnWidth <= 0) {
                 setTranslationZ(0.0f);
-                setVisibility(8);
             }
+            setVisibility(8);
             ZaloWebView zaloWebView = this.lastWv;
             if (zaloWebView != null) {
                 zaloWebView.setBackgroundColor(MainActivity.pageBottomColor());
@@ -1055,7 +1055,10 @@ public final class NativeChatList extends FrameLayout {
             String str = this.lastLayout;
             if (str != null) {
                 setLayout(str, this.lastWv);
-            } else if (this.columnWidth <= 0) {
+            } else {
+                if (this.columnWidth <= 0) {
+                    setTranslationZ(0.0f);
+                }
                 setVisibility(8);
             }
             if (this.pendingOpen != null) {
@@ -1278,13 +1281,13 @@ public final class NativeChatList extends FrameLayout {
             int sw = jSONObject.optInt("sw", 0);
             boolean isWide = getResources().getConfiguration().screenWidthDp >= 600;
             setColumnWidthPx((isWide && sw > 0) ? dp(sw) : 0);
-            setVisibility((z || this.columnWidth > 0) ? 0 : 8);
+            setVisibility(z ? 0 : 8);
             setTranslationZ(z2 ? (this.columnWidth > 0 ? 1000.0f : 0.0f) : -1.0f);
             int[] iArr = null;
             placeGlass(z ? jSONArrayOptJSONArray2 : null, jSONObject.optBoolean("dh"));
             if (zaloWebView != null) {
                 zaloWebView.passTop = z2 ? 0 : -1;
-                zaloWebView.passRight = this.columnWidth;
+                zaloWebView.passRight = z ? this.columnWidth : 0;
                 if (!z || jSONArrayOptJSONArray2 == null) {
                     i = 0;
                 } else {
@@ -1292,7 +1295,7 @@ public final class NativeChatList extends FrameLayout {
                     iArr = new int[]{dp(jSONArrayOptJSONArray2.optInt(0)), dp(jSONArrayOptJSONArray2.optInt(1)), dp(jSONArrayOptJSONArray2.optInt(2)), dp(jSONArrayOptJSONArray2.optInt(3))};
                 }
                 zaloWebView.passExclude = iArr;
-                zaloWebView.setBackgroundColor((z || this.columnWidth > 0) ? i : MainActivity.pageBottomColor());
+                zaloWebView.setBackgroundColor(z ? i : MainActivity.pageBottomColor());
             }
             if (z) {
                 animateTop(iDp);

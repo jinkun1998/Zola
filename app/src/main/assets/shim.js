@@ -97,16 +97,26 @@
     if (api.convFocusEnd) api.convFocusEnd();
   }
   api.closeMenus = closeMenus;
+  var cachedWebpackReq = null;
+  function getWebpack() {
+    if (cachedWebpackReq) return cachedWebpackReq;
+    try {
+      var jp = window.webpackJsonp;
+      if (jp && typeof jp.push === 'function') {
+        var cid = '__zd_wp_' + Math.random();
+        var obj = {};
+        obj[cid] = function (m, e, req) { cachedWebpackReq = req; };
+        jp.push([[cid], obj, [[cid]]]);
+      }
+    } catch (e) {}
+    return cachedWebpackReq;
+  }
   var activeDockKey = ''; // theo dõi nút dock đang active (KEY_NAME_SEND2ME, STR_TAB_MESSAGE, STR_TAB_CONTACT)
   var cachedSendToMeId = ''; // cache sendToMeId từ webpack module NDmK
   function getSendToMeId() {
     if (cachedSendToMeId) return cachedSendToMeId;
     try {
-      var jp = window.webpackJsonp, r = null;
-      if (!jp || typeof jp.push !== 'function') return '';
-      var id = 'zd_s2m_' + Date.now(), mods = {};
-      mods[id] = function (m, e, req) { r = req; };
-      jp.push([[id], mods, [[id]]]);
+      var r = getWebpack();
       var mod = r && r('NDmK');
       if (mod && mod.default && mod.default.sendToMeId) {
         cachedSendToMeId = String(mod.default.sendToMeId);
@@ -115,12 +125,69 @@
     } catch (e) {}
     return '';
   }
+
+  function clickTab(b) {
+    if (!b) return;
+    var fk = Object.keys(b).filter(function (x) { return x.indexOf('__react') === 0; })[0];
+    for (var f = fk && b[fk]; f; f = f.return) {
+      if (f.memoizedProps && typeof f.memoizedProps.onClick === 'function') {
+        try { f.memoizedProps.onClick({ stopPropagation: function(){}, preventDefault: function(){} }); } catch (e) {}
+      }
+    }
+    try { b.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })); } catch (e) {}
+    try { b.click(); } catch (e) {}
+  }
+
+  function switchTab(tabKey, dockKey) {
+    activeDockKey = dockKey || tabKey;
+    var wp = getWebpack();
+    if (wp) {
+      try {
+        var mc = null;
+        try { mc = wp('jDHv').ModuleContainer; } catch (e) {}
+        if (!mc && window.__zdMC) mc = window.__zdMC;
+        var sb = null;
+        try { sb = mc && mc.resolve(wp('iZzu').SidebarController); } catch (e) {}
+        var store = null;
+        try { store = wp('qf73').b; } catch (e) {}
+        var hxa = null;
+        try { hxa = wp('h/xa'); } catch (e) {}
+        if (sb) {
+          if (tabKey === 'STR_TAB_MESSAGE') {
+            if (typeof sb.selectMessageTab === 'function') sb.selectMessageTab();
+            else if (typeof sb.changeTab === 'function') sb.changeTab('message');
+            if (typeof M !== 'undefined' && M && M.cdetail) setContactDetail(false);
+          } else if (tabKey === 'STR_TAB_CONTACT') {
+            if (typeof sb.changeTab === 'function') sb.changeTab('contact');
+            try {
+              var cCls = wp('5cla');
+              var cMod = cCls && (cCls.b || cCls.default || cCls);
+              var cInst = mc && typeof mc.resolve === 'function' ? mc.resolve(cMod) : cMod;
+              if (cInst && typeof cInst.onClickContabTabEntry === 'function') {
+                cInst.onClickContabTabEntry();
+              }
+            } catch (x) {}
+          }
+        }
+        if (store && typeof store.dispatch === 'function') {
+          var actionType = (hxa && hxa.a && hxa.a.ITEM_CHANGED) || 'ITEM_CHANGED';
+          store.dispatch({ type: actionType, payload: { manager: 'sidebar-controller', key: '1' } });
+        }
+      } catch (e) {}
+    }
+    var b = document.querySelector('#main-tab .leftbar-tab[data-translate-title=' + tabKey + ']');
+    if (b) clickTab(b);
+    if (api.syncNative) api.syncNative();
+    if (api.syncDock) api.syncDock();
+  }
+  api.switchTab = switchTab;
   api.setWide = function (w) {
     cfgWide = !!w;
     var root = document.documentElement;
     var tc = isWide();
     root.classList.toggle('zd-twocol', tc);
     if (M.chat) placeBack();
+    if (infoEl) placeInfoBack(infoEl);
     safe(sync);
     if (api.syncDock) api.syncDock();
     if (api.syncNative) api.syncNative();
@@ -646,9 +713,12 @@
     // Trượt khung ra trước (CSS .zd-leave) rồi mới quay lại danh sách.
     leaving = true;
     m.classList.add('zd-leave');
+    var isContact = m && m.classList.contains('contact-pages');
     setTimeout(function () { leaving = false; go(); m.classList.remove('zd-leave'); }, 190);
-    activeDockKey = 'STR_TAB_MESSAGE';
-    if (api.syncDock) api.syncDock();
+    if (!isContact) {
+      activeDockKey = 'STR_TAB_MESSAGE';
+      if (api.syncDock) api.syncDock();
+    }
     return true;
   };
   api.mobileChat = function () { if (mobile) setChat(true); };
@@ -708,7 +778,7 @@
       // Đang ở tab khác (Danh bạ): Back về tab Tin nhắn như app Zalo, chưa đưa app xuống nền.
       var msgTab = document.querySelector('#main-tab .leftbar-tab[data-translate-title=STR_TAB_MESSAGE]');
       if (M.ok && msgTab && !msgTab.classList.contains('selected') && document.querySelector('#main-tab .leftbar-tab.selected')) {
-        msgTab.click();
+        switchTab('STR_TAB_MESSAGE');
         return true;
       }
       return false;
@@ -756,16 +826,17 @@
       'html.zd-m.zd-twocol #container { display: flex !important; flex-direction: row !important; overflow: hidden !important; width: 100% !important; height: 100% !important; }',
       'html.zd-m.zd-twocol #sidebarNav { flex: 0 0 340px !important; width: 340px !important; max-width: 340px !important; min-width: 340px !important; height: 100% !important; border-right: 1px solid rgba(127,127,127,.18) !important; box-sizing: border-box !important; }',
       'html.zd-m.zd-twocol #sidebarNav > :not(#main-tab) { width: 100% !important; max-width: 100% !important; flex: 1 1 auto !important; }',
-      'html.zd-m.zd-twocol, html.zd-m.zd-twocol body, html.zd-m.zd-twocol #app-page { background: transparent !important; }',
-      'html.zd-m.zd-twocol #sidebarNav, html.zd-m.zd-twocol #sidebarNav > :not(#main-tab), html.zd-m.zd-twocol #sidebarNav > :not(#main-tab) > * { background: transparent !important; }',
-      'html.zd-m.zd-twocol #sidebarNav > :not(#main-tab) > :not(#contact-search) { opacity: 0 !important; pointer-events: none !important; }',
-      'html.zd-m.zd-twocol #contact-search, html.zd-m.zd-twocol #sidebarNav .msg-filters-bar { opacity: 0 !important; }',
+      'html.zd-m.zd-twocol.zd-native, html.zd-m.zd-twocol.zd-native body, html.zd-m.zd-twocol.zd-native #app-page { background: transparent !important; }',
+      'html.zd-m.zd-twocol.zd-native #sidebarNav, html.zd-m.zd-twocol.zd-native #sidebarNav > :not(#main-tab), html.zd-m.zd-twocol.zd-native #sidebarNav > :not(#main-tab) > * { background: transparent !important; }',
+      'html.zd-m.zd-twocol.zd-native #sidebarNav > :not(#main-tab) > :not(#contact-search) { opacity: 0 !important; pointer-events: none !important; }',
+      'html.zd-m.zd-twocol.zd-native #contact-search, html.zd-m.zd-twocol.zd-native #sidebarNav .msg-filters-bar { opacity: 0 !important; }',
       'html.zd-m.zd-twocol #loading-page, html.zd-m.zd-twocol [id*="loading"], html.zd-m.zd-twocol #app-theme-overlay, html.zd-m.zd-twocol .theme-transition-overlay, html.zd-m.zd-twocol .draggable, html.zd-m.zd-twocol [class*="loading"]:not(#container *) { display: none !important; }',
       'html.zd-m.zd-twocol #chatOnboard { display: none !important; }',
       'html.zd-m.zd-twocol #container > main, html.zd-m.zd-twocol #container > span > main, html.zd-m.zd-twocol #container > .contact-pages' +
         ' { position: relative !important; top: auto !important; left: auto !important; right: auto !important; bottom: auto !important;' +
         ' flex: 1 1 0 !important; width: 0 !important; height: 100% !important; min-width: 0 !important; max-width: none !important;' +
         ' z-index: 1 !important; animation: none !important; margin: 0 !important; box-shadow: none !important; }',
+      'html.zd-m.zd-twocol #container > .contact-pages { display: flex !important; }',
       'html.zd-m.zd-twocol:not(.zd-chat) [data-zd=main]:not(.contact-pages) { display: none !important; }',
       'html.zd-m.zd-twocol #zd-back, html.zd-m.zd-twocol .conv-back-btn { display: none !important; }',
       'html.zd-m.zd-twocol [data-zd=header] { padding-left: 16px !important; }',
@@ -942,7 +1013,8 @@
         ' animation: zd-in .28s cubic-bezier(.2,.8,.2,1) both; box-shadow: -8px 0 24px rgba(0,0,0,.18); }',
       // Trang chi tiết danh bạ (bạn bè, nhóm, lời mời): Zalo luôn dựng sẵn khi ở tab Danh bạ. Tab Danh bạ mở ra menu
       // (danh sách mục bên trái); chạm một mục mới trượt trang chi tiết vào như mở hội thoại (zd-cdetail, xem M.cdetail).
-      'html.zd-m:not(.zd-cdetail) #container > .contact-pages { display: none !important; }',
+      'html.zd-m:not(.zd-twocol):not(.zd-cdetail) #container > .contact-pages { display: none !important; }',
+      'html.zd-m .contact-tab-v2, html.zd-m #ContactTabV2 { padding-bottom: calc(72px + var(--zd-dock-bottom, 24px)) !important; box-sizing: border-box !important; overflow-y: auto !important; }',
       // Quay lại: trượt ra trước, rồi mới để Zalo gỡ khung (api.mobileHome).
       'html.zd-m [data-zd=main].zd-leave { animation: zd-out .2s cubic-bezier(.4,0,1,1) both !important; }',
       // Màn hình rộng: khung chat vẫn nằm trong trang sau khi quay lại danh sách, chỉ ẩn đi.
@@ -982,9 +1054,14 @@
       'html.zd-m [data-zd=main] { overflow: clip !important; }',
       // Khung bên phải (Thông tin hội thoại, Tìm kiếm trong trò chuyện — xem syncInfo): phủ cả khung chat, trượt vào
       // từ phải bằng hiệu ứng của app thay cho hiệu ứng kéo rộng của Zalo (hai cái chồng nhau trông như bung 2 lần).
-      'html.zd-m [data-zd=main] > aside { position: fixed !important; top: 0 !important; left: 0 !important;' +
+      'html.zd-m:not(.zd-twocol) [data-zd=main] > aside { position: fixed !important; top: 0 !important; left: 0 !important;' +
         ' right: 0 !important; bottom: 0 !important; width: auto !important; height: auto !important;' +
         ' min-width: 0 !important; max-width: none !important; margin: 0 !important; z-index: 20 !important;' +
+        ' transition: none !important; animation: zd-in .28s cubic-bezier(.2,.8,.2,1) both !important; }',
+      'html.zd-m.zd-twocol [data-zd=main] > aside { position: absolute !important; top: 0 !important; left: 0 !important;' +
+        ' right: 0 !important; bottom: 0 !important; width: auto !important; height: 100% !important;' +
+        ' min-width: 0 !important; max-width: none !important; margin: 0 !important; z-index: 20 !important;' +
+        ' border-left: 1px solid rgba(127,127,127,.18) !important;' +
         ' transition: none !important; animation: zd-in .28s cubic-bezier(.2,.8,.2,1) both !important; }',
       'html.zd-m [data-zd=main] > aside.zd-swap { animation: none !important; }',
       // Nền mờ phủ phần chat còn lại: không còn phần nào để phủ.
@@ -995,8 +1072,10 @@
         ' max-width: none !important; border-left: 0 !important; }',
       // Thanh tiêu đề / thân khung Tìm kiếm có bề rộng cố định (343px): giãn theo khung.
       'html.zd-m [data-zd=main] > aside > :not(.cp-bg) > * { width: auto !important; max-width: none !important; }',
-      'html.zd-m [data-zd=main] > aside { border-left: 0 !important; box-shadow: none !important; }',
+      'html.zd-m:not(.zd-twocol) [data-zd=main] > aside { border-left: 0 !important; box-shadow: none !important; }',
       '#zd-info-back { z-index: 21; }',
+      'html.zd-m.zd-twocol #zd-info-back { left: 340px !important; }',
+      'html.zd-m aside :is(.chat-info__header, .search-message-inchat__header) { padding-left: 48px !important; box-sizing: border-box !important; }',
       // Hộp thoại Tạo nhóm (#CREATE_GROUP_COMPOSE, rộng 520px), Thêm bạn (#FIND_FRIEND, 400px) và mọi hộp thoại
       // chọn người dùng chung bộ chọn của Tạo nhóm (.create-group__list — Thêm thành viên vào nhóm...): phủ toàn màn hình, trượt lên từ đáy thay cho hiệu ứng phóng to. Back / nút X vẫn đóng
       // như hộp thoại thường (api.back).
@@ -1928,9 +2007,10 @@
       var fk = Object.keys(b).filter(function (x) { return x.indexOf('__react') === 0; })[0];
       for (var f = fk && b[fk]; f; f = f.return) {
         if (f.memoizedProps && typeof f.memoizedProps.onClick === 'function') {
-          try { f.memoizedProps.onClick({ stopPropagation: function(){}, preventDefault: function(){} }); break; } catch (e) {}
+          try { f.memoizedProps.onClick({ stopPropagation: function(){}, preventDefault: function(){} }); } catch (e) {}
         }
       }
+      try { b.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })); } catch (e) {}
       try { b.click(); } catch (e) {}
     }
     function syncDock() {
@@ -2009,26 +2089,25 @@
       })();
     }
     api.dockTap = function (i) {
-      var b = dockButton(i), k = dockKeys()[i];
+      var k = dockKeys()[i];
       if (k === 'STR_LEFT_SIDEBAR_ZALO_CLOUD' || k === 'STR_TOOLS') {
         placeDockPopover(k);
       } else if (k === 'KEY_NAME_SEND2ME') {
-        activeDockKey = 'KEY_NAME_SEND2ME';
         var s2m = getSendToMeId();
         if (s2m) {
           api.openConv(s2m);
           if (!isWide() && !M.chat) api.mobileChat();
         }
-        if (b) clickTab(b);
+        switchTab('STR_TAB_MESSAGE', 'KEY_NAME_SEND2ME');
       } else if (k === 'STR_TAB_MESSAGE') {
-        activeDockKey = 'STR_TAB_MESSAGE';
         if (!isWide() && M.chat) api.mobileHome();
-        if (b) clickTab(b);
+        switchTab('STR_TAB_MESSAGE', 'STR_TAB_MESSAGE');
       } else if (k === 'STR_TAB_CONTACT') {
-        activeDockKey = 'STR_TAB_CONTACT';
-        if (b) clickTab(b);
+        if (!isWide() && M.chat) api.mobileHome();
+        if (M.cdetail) setContactDetail(false);
+        switchTab('STR_TAB_CONTACT', 'STR_TAB_CONTACT');
       } else {
-        if (b) clickTab(b);
+        switchTab(k, k);
       }
       // App đã cho viên thuốc trượt trước: báo lại trạng thái thật kể cả khi Zalo không đổi tab.
       setTimeout(function () { lastDock = ''; safe(syncDock); }, 300);
@@ -2162,21 +2241,27 @@
         s.setProperty('bottom', Math.round(r.bottom - (innerHeight - 84)) + 'px', 'important');
       }
     }
-    addEventListener('resize', function () { safe(placeVideoControls); });
+    addEventListener('resize', function () { safe(placeVideoControls); if (infoEl) safe(function () { placeInfoBack(infoEl); }); });
     function placeInfoBack(info) {
       var b = document.getElementById('zd-info-back');
       if (!info) { if (b) b.classList.remove('zd-on'); return; }
       if (!b) b = backButton('zd-info-back', api.closeInfo);
       if (!b) return;
+      var sb = document.getElementById('sidebarNav');
+      var sw = isWide() ? (sb && sb.offsetWidth ? sb.offsetWidth : 340) : 0;
       b.style.top = '0px';
-      b.style.height = '68px'; // cao bằng thanh tiêu đề của khung (chat-info__header, search-message-inchat__header)
+      b.style.left = sw + 'px';
+      var hdr = info.querySelector('.chat-info__header, .search-message-inchat__header');
+      b.style.height = (hdr && hdr.offsetHeight ? hdr.offsetHeight : 68) + 'px';
       b.classList.add('zd-on');
     }
     /** Đóng khung bên phải như người dùng: nút X của khung Tìm kiếm, nền mờ của khung Thông tin, nút bật/tắt khung. */
     api.closeInfo = function () {
       var info = infoEl && infoEl.isConnected ? infoEl : null;
       if (!info) return false;
-      var b = info.querySelector('.search-message-inchat__header__right-btn') || info.querySelector(':scope > .cp-bg') ||
+      var b = info.querySelector('.search-message-inchat__header__right-btn') ||
+        info.querySelector('.chat-info__header [icon^="close"]') ||
+        info.querySelector(':scope > .cp-bg') ||
         (M.main && M.main.querySelector('header [icon^="outline-right-bar"]'));
       if (b) b.click();
       setTimeout(syncInfo, 60);
@@ -2191,7 +2276,7 @@
       if (t.closest('#main-tab')) {
         if (M.cdetail) { setContactDetail(false); setTimeout(sync, 0); }
       } else if (t.closest('#sidebarNav .menu-item') && document.querySelector('#container > .contact-pages')) {
-        setContactDetail(true);
+        if (!isWide()) setContactDetail(true);
         setTimeout(sync, 0);
       }
     }, true);
@@ -2629,7 +2714,7 @@
       for (var k in r.c) {
         var ex = r.c[k] && r.c[k].exports;
         if (!ex || typeof ex !== 'object') continue;
-        if (!found.container && ex.ModuleContainer && typeof ex.ModuleContainer.resolve === 'function') found.container = ex.ModuleContainer;
+        if (!found.container && ex.ModuleContainer && typeof ex.ModuleContainer.resolve === 'function') { found.container = ex.ModuleContainer; window.__zdMC = ex.ModuleContainer; }
         if (!found.tokens && ex.PreviewDataManager && ex.UnreadDataManager) found.tokens = ex;
         if (!found.convCtl && ex.ConversationController && ex.ConversationController.service) found.convCtl = ex.ConversationController;
         if (!found.clc && ex.ConvListController) found.clc = ex.ConvListController;
