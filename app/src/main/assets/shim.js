@@ -823,8 +823,9 @@
       'html.zd-m #sidebarNav, html.zd-m #sidebarNav > :not(#main-tab) { flex: 1 1 auto !important;' +
         ' width: auto !important; max-width: none !important; min-width: 0 !important; }',
       'html.zd-m #chatOnboard { display: none !important; }',
+      'html.zd-m.zd-twocol { --zd-col-w: clamp(280px, 38vw, 380px); }',
       'html.zd-m.zd-twocol #container { display: flex !important; flex-direction: row !important; overflow: hidden !important; width: 100% !important; height: 100% !important; }',
-      'html.zd-m.zd-twocol #sidebarNav { flex: 0 0 280px !important; width: 280px !important; max-width: 280px !important; min-width: 280px !important; height: 100% !important; border-right: 1px solid rgba(127,127,127,.18) !important; box-sizing: border-box !important; }',
+      'html.zd-m.zd-twocol #sidebarNav { flex: 0 0 var(--zd-col-w) !important; width: var(--zd-col-w) !important; max-width: var(--zd-col-w) !important; min-width: var(--zd-col-w) !important; height: 100% !important; border-right: 1px solid rgba(127,127,127,.18) !important; box-sizing: border-box !important; }',
       'html.zd-m.zd-twocol #sidebarNav > :not(#main-tab) { width: 100% !important; max-width: 100% !important; flex: 1 1 auto !important; }',
       'html.zd-m.zd-twocol.zd-native, html.zd-m.zd-twocol.zd-native body, html.zd-m.zd-twocol.zd-native #app-page { background: transparent !important; }',
       'html.zd-m.zd-twocol.zd-native #sidebarNav, html.zd-m.zd-twocol.zd-native #sidebarNav > :not(#main-tab), html.zd-m.zd-twocol.zd-native #sidebarNav > :not(#main-tab) > * { background: transparent !important; }',
@@ -840,7 +841,7 @@
       'html.zd-m.zd-twocol:not(.zd-chat) [data-zd=main]:not(.contact-pages) { display: none !important; }',
       'html.zd-m.zd-twocol #zd-back, html.zd-m.zd-twocol .conv-back-btn { display: none !important; }',
       'html.zd-m.zd-twocol [data-zd=main] header, html.zd-m.zd-twocol [data-zd=header] { padding-left: 16px !important; }',
-      'html.zd-m.zd-twocol #main-tab { left: 0 !important; right: auto !important; width: var(--zd-dock-w, 228px) !important; margin-left: calc((280px - var(--zd-dock-w, 228px)) / 2) !important; margin-right: 0 !important; }',
+      'html.zd-m.zd-twocol #main-tab { left: 0 !important; right: auto !important; width: var(--zd-dock-w, 228px) !important; margin-left: calc((var(--zd-col-w) - var(--zd-dock-w, 228px)) / 2) !important; margin-right: 0 !important; }',
       // Lời nhắc đồng bộ tin nhắn (banner đầu danh sách, nút cuối danh sách) và thẻ "Đồng bộ ngay / Tải Zalo PC
       // để xem đầy đủ tin nhắn" trong khung chat (nhận ra qua hình hai thiết bị chuyển tin).
       'html.zd-m .sync-v2-banner, html.zd-m .tds-conversation__footer-wrapper:has(.tds-conversation__footer-content-sync-button),' +
@@ -1074,7 +1075,7 @@
       'html.zd-m [data-zd=main] > aside > :not(.cp-bg) > * { width: auto !important; max-width: none !important; }',
       'html.zd-m:not(.zd-twocol) [data-zd=main] > aside { border-left: 0 !important; box-shadow: none !important; }',
       '#zd-info-back { z-index: 21; }',
-      'html.zd-m.zd-twocol #zd-info-back { left: 280px !important; }',
+      'html.zd-m.zd-twocol #zd-info-back { left: var(--zd-col-w) !important; }',
       'html.zd-m aside :is(.chat-info__header, .search-message-inchat__header) { padding-left: 48px !important; box-sizing: border-box !important; }',
       // Hộp thoại Tạo nhóm (#CREATE_GROUP_COMPOSE, rộng 520px), Thêm bạn (#FIND_FRIEND, 400px) và mọi hộp thoại
       // chọn người dùng chung bộ chọn của Tạo nhóm (.create-group__list — Thêm thành viên vào nhóm...): phủ toàn màn hình, trượt lên từ đáy thay cho hiệu ứng phóng to. Back / nút X vẫn đóng
@@ -2257,7 +2258,8 @@
       if (!b) b = backButton('zd-info-back', api.closeInfo);
       if (!b) return;
       var sb = document.getElementById('sidebarNav');
-      var sw = isWide() ? (sb && sb.offsetWidth ? sb.offsetWidth : 280) : 0;
+      var defW = Math.round(Math.min(380, Math.max(280, innerWidth * 0.38)));
+      var sw = isWide() ? (sb && sb.offsetWidth ? sb.offsetWidth : defW) : 0;
       b.style.top = '0px';
       b.style.left = sw + 'px';
       var hdr = info.querySelector('.chat-info__header, .search-message-inchat__header');
@@ -3848,7 +3850,8 @@
       var hb = active ? 96 : 0;
       var d = tab && active ? tab.getBoundingClientRect() : null;
       var sb = document.getElementById('sidebarNav');
-      var sw = twoCol ? (sb && sb.offsetWidth ? Math.round(sb.getBoundingClientRect().width) : 280) : 0;
+      var defW = Math.round(Math.min(380, Math.max(280, innerWidth * 0.38)));
+      var sw = twoCol ? (sb && sb.offsetWidth ? Math.round(sb.getBoundingClientRect().width) : defW) : 0;
       // dh: dock đang trượt xuống ẩn (html.zd-dockhide) — app cho lớp kính mờ dưới dock trượt theo cùng lúc.
       var lay = JSON.stringify({ on: active, pass: pass, top: hb, dock: d ? [Math.round(d.left), Math.round(d.top), Math.round(d.right),
         Math.round(d.bottom)] : null, dh: root.classList.contains('zd-dockhide'), tabs: filterTabs(), cat: catLabel(), bg: getComputedStyle(root).getPropertyValue('--zd-listbg') || '',
@@ -4060,7 +4063,9 @@
         !!n.querySelector('.fa-outline-filter, [data-translate-inner*="STR_FILTER"], .category-item, [class*=filter-menu]');
       if (!isDrop) {
         var left = parseFloat(n.style.left) || 0;
-        if (left > 100 && left < 280) isDrop = true;
+        var sb = document.getElementById('sidebarNav');
+        var colLimit = sb && sb.offsetWidth ? sb.offsetWidth : Math.round(Math.min(380, Math.max(280, innerWidth * 0.38)));
+        if (left > 100 && left < colLimit) isDrop = true;
       }
       if (isDrop) {
         n.classList.add('zd-drop');
@@ -4498,8 +4503,8 @@
       'html.zd-m:not(.zd-twocol) body > .popover-v3:has(> .media-dock) { left: 0 !important; right: 0 !important; top: auto !important;',
       '  bottom: 0 !important; width: 100% !important; transform: none !important; box-sizing: border-box !important;',
       '  padding: 0 !important; border-width: 1px 0 0 !important; border-radius: 0 !important; }',
-      'html.zd-m.zd-twocol body > .popover-v3:has(> .media-dock) { left: 280px !important; right: 0 !important; top: auto !important;',
-      '  bottom: 0 !important; width: calc(100vw - 280px) !important; transform: none !important; box-sizing: border-box !important;',
+      'html.zd-m.zd-twocol body > .popover-v3:has(> .media-dock) { left: var(--zd-col-w, 280px) !important; right: 0 !important; top: auto !important;',
+      '  bottom: 0 !important; width: calc(100vw - var(--zd-col-w, 280px)) !important; transform: none !important; box-sizing: border-box !important;',
       '  padding: 0 !important; border-width: 1px 0 0 1px !important; border-color: rgba(127,127,127,.18) !important; border-radius: 0 !important; }',
       'html.zd-m body > .popover-v3 > .media-dock { width: 100% !important; height: var(--zd-kb) !important;',
       '  margin: 0 !important; border-radius: 0 !important; }',

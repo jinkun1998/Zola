@@ -138,6 +138,14 @@ public final class NativeChatList extends FrameLayout {
         }
     }
 
+    public static int calcColumnWidthDp(int screenWidthDp) {
+        if (screenWidthDp < 600) {
+            return 0;
+        }
+        int target = Math.round(screenWidthDp * 0.38f);
+        return Math.max(280, Math.min(380, target));
+    }
+
     NativeChatList(Context context) {
         super(context);
         Adapter adapter = new Adapter();
@@ -152,7 +160,7 @@ public final class NativeChatList extends FrameLayout {
         this.tabNames = "";
         this.slideRun = this::runTabSlide;
         if (context.getResources().getConfiguration().screenWidthDp >= 600) {
-            this.columnWidth = dp(280.0f);
+            this.columnWidth = dp(calcColumnWidthDp(context.getResources().getConfiguration().screenWidthDp));
         }
         this.density = getResources().getDisplayMetrics().density;
         this.zoom = Prefs.textZoom(context) / 100.0f;
@@ -532,7 +540,7 @@ public final class NativeChatList extends FrameLayout {
                 boolean isWide = getResources().getConfiguration().screenWidthDp >= 600;
                 int sw = jSONObject.optInt("sw", 0);
                 if (isWide) {
-                    setColumnWidthPx(sw > 0 ? dp(sw) : dp(280.0f));
+                    setColumnWidthPx(sw > 0 ? dp(sw) : dp(calcColumnWidthDp(getResources().getConfiguration().screenWidthDp)));
                 } else {
                     setColumnWidthPx(0);
                 }

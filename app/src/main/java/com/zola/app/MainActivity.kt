@@ -237,7 +237,7 @@ class MainActivity : AppCompatActivity() {
         val night = (newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         applyNightMode(night)
         val isWide = newConfig.screenWidthDp >= 600
-        val colW = if (isWide) nativeList.dp(280f) else 0
+        val colW = if (isWide) nativeList.dp(NativeChatList.calcColumnWidthDp(newConfig.screenWidthDp).toFloat()) else 0
         nativeList.setColumnWidthPx(colW)
         nativeDock.setColumnWidth(colW)
         webView.passRight = colW

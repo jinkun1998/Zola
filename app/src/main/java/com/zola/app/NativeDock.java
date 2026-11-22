@@ -81,7 +81,7 @@ public final class NativeDock extends FrameLayout {
         this.W = 228;
         this.n = 3;
         if (context.getResources().getConfiguration().screenWidthDp >= 600) {
-            this.columnWidth = dp(280.0f);
+            this.columnWidth = dp(NativeChatList.calcColumnWidthDp(context.getResources().getConfiguration().screenWidthDp));
         }
         this.tint = new Paint(1);
         this.pill = new Paint(1);
