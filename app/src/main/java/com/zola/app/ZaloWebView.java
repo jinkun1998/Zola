@@ -19,7 +19,7 @@ public final class ZaloWebView extends WebView {
         this.lastUrl = "";
         this.passTop = -1;
         this.passRight = (context.getResources().getConfiguration().screenWidthDp >= 600)
-                ? Math.round(340.0f * context.getResources().getDisplayMetrics().density)
+                ? Math.round(280.0f * context.getResources().getDisplayMetrics().density)
                 : 0;
         this.popup = z;
     }
