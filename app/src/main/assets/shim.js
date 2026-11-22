@@ -839,7 +839,7 @@
       'html.zd-m.zd-twocol #container > .contact-pages { display: flex !important; }',
       'html.zd-m.zd-twocol:not(.zd-chat) [data-zd=main]:not(.contact-pages) { display: none !important; }',
       'html.zd-m.zd-twocol #zd-back, html.zd-m.zd-twocol .conv-back-btn { display: none !important; }',
-      'html.zd-m.zd-twocol [data-zd=header] { padding-left: 16px !important; }',
+      'html.zd-m.zd-twocol [data-zd=main] header, html.zd-m.zd-twocol [data-zd=header] { padding-left: 16px !important; }',
       'html.zd-m.zd-twocol #main-tab { left: 0 !important; right: auto !important; width: var(--zd-dock-w, 228px) !important; margin-left: calc((340px - var(--zd-dock-w, 228px)) / 2) !important; margin-right: 0 !important; }',
       // Lời nhắc đồng bộ tin nhắn (banner đầu danh sách, nút cuối danh sách) và thẻ "Đồng bộ ngay / Tải Zalo PC
       // để xem đầy đủ tin nhắn" trong khung chat (nhận ra qua hình hai thiết bị chuyển tin).
@@ -1113,6 +1113,15 @@
         ' max-height: none !important; overflow-y: auto !important; }',
       'html.zd-m .zl-modal__dialog:has(.reminder-settings, .group-poll-create, .group-poll-create-v3, .create-topic-v2)' +
         ' .zl-modal__dialog__header [icon^="close"] { display: none !important; }',
+      // Màn hình gập / máy tính bảng (zd-twocol): hộp thoại hiển thị dạng thẻ nổi giữa màn hình, giữ nút X đóng hộp thoại.
+      'html.zd-m.zd-twocol .zl-modal__container:has(> #CREATE_GROUP_COMPOSE, > #FIND_FRIEND, > #ADD_MEMBER_COMPOSE, > .zl-modal__dialog .create-group__list, > .zl-modal__dialog #setting, > .zl-modal__dialog :is(.reminder-settings, .group-poll-create, .group-poll-create-v3, .create-topic-v2)) {' +
+        ' display: flex !important; align-items: center !important; justify-content: center !important; padding: 24px !important; }',
+      'html.zd-m.zd-twocol :is(#CREATE_GROUP_COMPOSE, #FIND_FRIEND, #ADD_MEMBER_COMPOSE, .zl-modal__dialog:has(.create-group__list), .zl-modal__dialog:has(#setting), .zl-modal__dialog:has(:is(.reminder-settings, .group-poll-create, .group-poll-create-v3, .create-topic-v2))) {' +
+        ' width: 520px !important; max-width: 90vw !important; height: auto !important; max-height: 85vh !important;' +
+        ' border-radius: 12px !important; overflow: hidden !important; box-shadow: 0 16px 40px rgba(0,0,0,.35) !important;' +
+        ' align-self: center !important; }',
+      'html.zd-m.zd-twocol :is(#CREATE_GROUP_COMPOSE, #FIND_FRIEND, #ADD_MEMBER_COMPOSE, .zl-modal__dialog:has(.create-group__list), .zl-modal__dialog:has(#setting), .zl-modal__dialog:has(:is(.reminder-settings, .group-poll-create, .group-poll-create-v3, .create-topic-v2))) .zl-modal__dialog__header [icon^="close"],' +
+        ' html.zd-m.zd-twocol .zl-modal__dialog:has(#setting) [icon^="close"] { display: flex !important; }',
       // Nút chọn nhanh giờ nhắc (15 phút nữa, 9:00 ngày mai...): giữ chữ một dòng, hết chỗ thì xuống hàng cả nút.
       'html.zd-m .reminder-time-container { flex-wrap: wrap !important; height: auto !important; gap: 8px; }',
       'html.zd-m .reminder-time-container .chips { height: 32px !important; white-space: nowrap !important; margin: 0 !important; }',
@@ -3813,7 +3822,10 @@
       // sau, lúc đóng chat trượt ra sẽ lộ danh sách cũ một nhịp. Chỉ nhường chạm (pass) khi không có gì che.
       var active = nativeOk && M.ok && !M.cdetail && !root.classList.contains('zd-searching') &&
         !!msgTab && msgTab.classList.contains('selected');
-      var pass = active && (twoCol || !M.chat) && !document.querySelector('.zl-modal__dialog, body > .popover-v3, .media-viewer');
+      var popoverBlocksLeft = twoCol ?
+        !!document.querySelector('body > .popover-v3.zd-conv-pop, body > .popover-v3.zd-acct-pop, body > .popover-v3.zd-drop') :
+        !!document.querySelector('body > .popover-v3');
+      var pass = active && (twoCol || !M.chat) && !document.querySelector('.zl-modal__dialog, .media-viewer') && !popoverBlocksLeft;
       if (active !== root.classList.contains('zd-native')) {
         if (active) {
           // Nền danh sách của Zalo (sáng/tối): giữ cho thanh trên, app tô cùng màu cho danh sách native.
@@ -4483,9 +4495,12 @@
     }
     setKb(kb || 280);
     var CSS18 = [
-      'html.zd-m body > .popover-v3:has(> .media-dock) { left: 0 !important; right: 0 !important; top: auto !important;',
+      'html.zd-m:not(.zd-twocol) body > .popover-v3:has(> .media-dock) { left: 0 !important; right: 0 !important; top: auto !important;',
       '  bottom: 0 !important; width: 100% !important; transform: none !important; box-sizing: border-box !important;',
       '  padding: 0 !important; border-width: 1px 0 0 !important; border-radius: 0 !important; }',
+      'html.zd-m.zd-twocol body > .popover-v3:has(> .media-dock) { left: 340px !important; right: 0 !important; top: auto !important;',
+      '  bottom: 0 !important; width: calc(100vw - 340px) !important; transform: none !important; box-sizing: border-box !important;',
+      '  padding: 0 !important; border-width: 1px 0 0 1px !important; border-color: rgba(127,127,127,.18) !important; border-radius: 0 !important; }',
       'html.zd-m body > .popover-v3 > .media-dock { width: 100% !important; height: var(--zd-kb) !important;',
       '  margin: 0 !important; border-radius: 0 !important; }',
       'html.zd-m:has(body > .popover-v3 > .media-dock) [data-zd=main] { padding-bottom: var(--zd-kb) !important;',

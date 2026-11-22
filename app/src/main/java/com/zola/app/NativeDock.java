@@ -219,9 +219,13 @@ public final class NativeDock extends FrameLayout {
 
     FrameLayout.LayoutParams params() {
         int gravity = this.columnWidth > 0 ? (Gravity.BOTTOM | Gravity.START) : (Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-        FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(dp(this.W + 48), dp(104.0f), gravity);
+        int dockViewW = dp(this.W + 48);
+        if (this.columnWidth > 0 && dockViewW > this.columnWidth) {
+            dockViewW = this.columnWidth;
+        }
+        FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(dockViewW, dp(104.0f), gravity);
         if (this.columnWidth > 0) {
-            layoutParams.leftMargin = Math.max(0, (this.columnWidth - dp(this.W + 48)) / 2);
+            layoutParams.leftMargin = Math.max(0, (this.columnWidth - dockViewW) / 2);
         }
         layoutParams.bottomMargin = dp(Prefs.dockBottom(getContext()) - 24);
         return layoutParams;

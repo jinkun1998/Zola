@@ -246,7 +246,7 @@ class MainActivity : AppCompatActivity() {
             if (::welcomeView.isInitialized) welcomeView.translationZ = if (nativeOn) 999f else -1f
             webView.setBackgroundColor(0)
         } else {
-            nativeList.translationZ = 0f
+            nativeList.translationZ = if (chatOpen) -1f else 0f
             if (::welcomeView.isInitialized) welcomeView.translationZ = 0f
         }
         if (::welcomeView.isInitialized) {
