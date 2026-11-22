@@ -279,17 +279,6 @@ public final class NativeChatList extends FrameLayout {
             this.pendingOpen = item.id;
             return;
         }
-        if ("stranger_box".equals(item.id)) {
-            WebViewHolder.evalMain("window.__zw&&window.__zw.openConv&&window.__zw.openConv('stranger_box');window.__zw&&window.__zw.mobileChat&&window.__zw.mobileChat();");
-            if (this.columnWidth <= 0) {
-                this.openingAt = SystemClock.uptimeMillis();
-                Runnable runnable = this.onOpen;
-                if (runnable != null) {
-                    runnable.run();
-                }
-            }
-            return;
-        }
         if (this.columnWidth <= 0) {
             this.openingAt = SystemClock.uptimeMillis();
             Runnable runnable = this.onOpen;
@@ -697,7 +686,7 @@ public final class NativeChatList extends FrameLayout {
             addView(frameLayout, new LinearLayout.LayoutParams(-1, NativeChatList.this.dp(32.0f)));
             LinearLayout linearLayout5 = new LinearLayout(context);
             linearLayout5.setGravity(16);
-            linearLayout5.setPadding(NativeChatList.this.dp(8.0f), 0, NativeChatList.this.dp(8.0f), 0);
+            linearLayout5.setPadding(NativeChatList.this.dp(6.0f), 0, NativeChatList.this.dp(6.0f), 0);
             frameLayout.addView(linearLayout5, new FrameLayout.LayoutParams(-1, -1));
             LinearLayout linearLayout6 = new LinearLayout(context);
             this.tabs = linearLayout6;
@@ -904,7 +893,7 @@ public final class NativeChatList extends FrameLayout {
                     TextView textView = new TextView(getContext());
                     textView.setText(jSONArray.optString(i2));
                     textView.setGravity(17);
-                    textView.setPadding(NativeChatList.this.dp(8.0f), 0, NativeChatList.this.dp(8.0f), 0);
+                    textView.setPadding(NativeChatList.this.dp(6.0f), 0, NativeChatList.this.dp(6.0f), 0);
                     textView.setTextSize(1, NativeChatList.this.zoom * 14.0f);
                     textView.setTypeface(Typeface.create("sans-serif-medium", 0));
                     textView.setOnClickListener(new View.OnClickListener() {
@@ -955,8 +944,10 @@ public final class NativeChatList extends FrameLayout {
             if (childAt == null || childAt.getWidth() == 0) {
                 return;
             }
-            float left = this.tabs.getLeft() + childAt.getLeft() + NativeChatList.this.dp(8.0f);
-            float width = childAt.getWidth() - NativeChatList.this.dp(16.0f);
+            float padL = childAt.getPaddingLeft();
+            float padR = childAt.getPaddingRight();
+            float left = this.tabs.getLeft() + childAt.getLeft() + padL;
+            float width = childAt.getWidth() - padL - padR;
             float f = this.indicator.getLayoutParams().width;
             this.indicator.setVisibility(0);
             this.indicator.animate().cancel();
@@ -1299,7 +1290,7 @@ public final class NativeChatList extends FrameLayout {
             }
             int sw = jSONObject.optInt("sw", 0);
             boolean isWide = getResources().getConfiguration().screenWidthDp >= 600;
-            setColumnWidthPx((isWide && sw > 0) ? dp(sw) : 0);
+            setColumnWidthPx(isWide ? (sw > 0 ? dp(sw) : dp(calcColumnWidthDp(getResources().getConfiguration().screenWidthDp))) : 0);
             setVisibility(z ? 0 : 8);
             setTranslationZ(z2 ? (this.columnWidth > 0 ? 1000.0f : 0.0f) : -1.0f);
             int[] iArr = null;
@@ -1707,11 +1698,6 @@ public final class NativeChatList extends FrameLayout {
             } else {
                 this.badge.setVisibility(8);
             }
-            if ("stranger_box".equals(item.id)) {
-                this.avatar.setImageBitmap(Avatars.strangerBox(getContext(), NativeChatList.this.dp(48.0f)));
-                this.hasRealAvatar = true;
-                return;
-            }
             String str = item.id + item.avatar + (item.members.length > 0 ? String.join(",", item.members) + item.total + NativeChatList.this.bg : "");
             if (TextUtils.equals(this.boundAvatar, str)) {
                 return;
@@ -2009,31 +1995,6 @@ public final class NativeChatList extends FrameLayout {
             canvas.clipPath(path);
             int iMin = Math.min(bitmap.getWidth(), bitmap.getHeight());
             canvas.drawBitmap(bitmap, new Rect((bitmap.getWidth() - iMin) / 2, (bitmap.getHeight() - iMin) / 2, (bitmap.getWidth() + iMin) / 2, (bitmap.getHeight() + iMin) / 2), new Rect(0, 0, i, i), new Paint(2));
-            return bitmapCreateBitmap;
-        }
-
-        static Bitmap strangerBox(Context context, int size) {
-            String str = "sb:" + size;
-            Bitmap bitmap = MEM.get(str);
-            if (bitmap != null) {
-                return bitmap;
-            }
-            Bitmap bitmapCreateBitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
-            Canvas canvas = new Canvas(bitmapCreateBitmap);
-            Paint paint = new Paint(1);
-            paint.setColor(0xFF0068FF);
-            float f = size / 2.0f;
-            canvas.drawCircle(f, f, f, paint);
-            paint.setColor(-1);
-            paint.setTextAlign(Paint.Align.CENTER);
-            paint.setTypeface(ZaloIcons.font(context));
-            paint.setTextSize(size * 0.52f);
-            String glyph = ZaloIcons.glyph(context, "stranger");
-            if (glyph == null || glyph.isEmpty()) {
-                glyph = "\ued81";
-            }
-            canvas.drawText(glyph, f, f - ((paint.descent() + paint.ascent()) / 2.0f), paint);
-            MEM.put(str, bitmapCreateBitmap);
             return bitmapCreateBitmap;
         }
 
