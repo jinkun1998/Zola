@@ -3210,6 +3210,64 @@
           var hasMsg = !!(it.m && it.m.trim() && it.m !== 'Chưa có tin nhắn');
           return it.u > 0 || hasMsg;
         });
+
+        // ----------------- Thư mục "Tin nhắn từ người lạ" (stranger_box) -----------------
+        var strangerUnread = 0;
+        var newestStrangerTime = 0;
+        var newestStrangerText = '';
+        var newestStrangerSender = '';
+        (z.unread && z.unread.getAllUnreadsSync ? z.unread.getAllUnreadsSync() : []).forEach(function (u) {
+          if (u.strangerUnreadCount) strangerUnread += u.strangerUnreadCount;
+        });
+        (z.info && z.info.getAllConvSync ? z.info.getAllConvSync() : []).forEach(function (c) {
+          if (c && (c.isStranger || c.isStrangerConv || c.type === 2 || c.stranger)) {
+            var cid = String(c.userId || c.id || c.convId || '');
+            var p = previews[cid], lm = cachedLastMsg[cid];
+            var t = (p && +p.messageTime) || (lm && +lm.sendDttm) || +c.lastActionTime || 0;
+            if (t > newestStrangerTime) {
+              newestStrangerTime = t;
+              var act = p || lm;
+              if (act) {
+                var pv = previewText(act);
+                newestStrangerText = stripArtificialBrackets(pv.t);
+                newestStrangerSender = act.dName || (c.displayName || c.zaloName || '');
+              }
+            }
+          }
+        });
+        var sbPreview = z.preview && z.preview.getPreviewByIDSync ? z.preview.getPreviewByIDSync('stranger_box') : null;
+        if (sbPreview) {
+          var sbp = previewText(sbPreview);
+          newestStrangerText = stripArtificialBrackets(sbp.t);
+          if (+sbPreview.messageTime > newestStrangerTime) newestStrangerTime = +sbPreview.messageTime;
+        }
+
+        var order = webOrder();
+        var hasStrangerInOrder = order && order.indexOf('stranger_box') >= 0;
+        if (hasStrangerInOrder || strangerUnread > 0 || newestStrangerTime > 0) {
+          var sMsg = newestStrangerText;
+          if (!sMsg) sMsg = strangerUnread > 0 ? (strangerUnread + ' tin nhắn mới từ người lạ') : 'Tin nhắn từ người lạ';
+          else if (newestStrangerSender) sMsg = newestStrangerSender + ': ' + sMsg;
+          var strangerItem = {
+            id: 'stranger_box',
+            g: false,
+            n: 'Tin nhắn từ người lạ',
+            a: '',
+            ms: [],
+            tm: 0,
+            t: newestStrangerTime || (Date.now() - 3600000),
+            m: sMsg,
+            ic: 'stranger',
+            miss: false,
+            u: strangerUnread,
+            at: 0,
+            ud: 0,
+            p: 0,
+            mu: false,
+            me: false
+          };
+          list.push(strangerItem);
+        }
         // Có nhóm mới / vừa đổi tên: lấy lại danh sách nhóm (ảnh ghép, số người) sau ~10 giây, không đợi đủ 60 giây.
         if (groupStale && Date.now() - namesAt > 10000 && Date.now() - groupRetryAt > 10000) {
           groupRetryAt = Date.now();
@@ -3251,9 +3309,9 @@
           list = [];
         } else {
           if (isOtherTab && z.arch) {
-            list = list.filter(function (it) { return z.arch.isArchivedChat(it.id); });
+            list = list.filter(function (it) { return it.id === 'stranger_box' || z.arch.isArchivedChat(it.id); });
           } else if (isFocusTab && z.arch) {
-            list = list.filter(function (it) { return !z.arch.isArchivedChat(it.id); });
+            list = list.filter(function (it) { return it.id === 'stranger_box' || !z.arch.isArchivedChat(it.id); });
           } else if (isUnreadTab) {
             list = list.filter(function (it) { return it.u > 0; });
           }
@@ -3303,6 +3361,38 @@
     };
     api.openConv = function (id) {
       var sid = String(id);
+      if (sid === 'stranger_box') {
+        var z = findZalo();
+        var row = document.querySelector('#conversationListId [data-id="stranger_box"], #conversationListId [id*="stranger_box"], #conversationListId .stranger-box');
+        if (!row) {
+          var allRows = document.querySelectorAll('#conversationListId [class*="conv-item"], #conversationListId [class*="msg-item"]');
+          for (var rIdx = 0; rIdx < allRows.length; rIdx++) {
+            if (/người lạ|stranger/i.test(allRows[rIdx].textContent)) {
+              row = allRows[rIdx];
+              break;
+            }
+          }
+        }
+        if (row) {
+          var b = row.getBoundingClientRect(), x = b.left + b.width / 2, y = b.top + b.height / 2;
+          ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(function (t) {
+            row.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y }));
+          });
+        } else {
+          if (z && z.clc && typeof z.clc.onClickStrangerBox === 'function') {
+            try { z.clc.onClickStrangerBox(); } catch(e){}
+          } else if (z && z.clc && typeof z.clc.selectConversation === 'function') {
+            try { z.clc.selectConversation({ convId: 'stranger_box', id: 'stranger_box', isStrangerBox: true }); } catch(e){}
+          }
+          if (z && z.conv && typeof z.conv.openStrangerBox === 'function') {
+            try { z.conv.openStrangerBox(); } catch(e){}
+          } else if (z && z.conv && z.conv.openConversation) {
+            try { z.conv.openConversation('stranger_box'); } catch(e){}
+          }
+        }
+        setTimeout(function () { if (M.sync) M.sync(); if (api.syncDock) api.syncDock(); }, 150);
+        return;
+      }
       var s2m = getSendToMeId();
       if (s2m && sid === s2m) {
         activeDockKey = 'KEY_NAME_SEND2ME';

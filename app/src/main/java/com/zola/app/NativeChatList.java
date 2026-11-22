@@ -279,6 +279,17 @@ public final class NativeChatList extends FrameLayout {
             this.pendingOpen = item.id;
             return;
         }
+        if ("stranger_box".equals(item.id)) {
+            WebViewHolder.evalMain("window.__zw&&window.__zw.openConv&&window.__zw.openConv('stranger_box');window.__zw&&window.__zw.mobileChat&&window.__zw.mobileChat();");
+            if (this.columnWidth <= 0) {
+                this.openingAt = SystemClock.uptimeMillis();
+                Runnable runnable = this.onOpen;
+                if (runnable != null) {
+                    runnable.run();
+                }
+            }
+            return;
+        }
         if (this.columnWidth <= 0) {
             this.openingAt = SystemClock.uptimeMillis();
             Runnable runnable = this.onOpen;
@@ -1696,6 +1707,11 @@ public final class NativeChatList extends FrameLayout {
             } else {
                 this.badge.setVisibility(8);
             }
+            if ("stranger_box".equals(item.id)) {
+                this.avatar.setImageBitmap(Avatars.strangerBox(getContext(), NativeChatList.this.dp(48.0f)));
+                this.hasRealAvatar = true;
+                return;
+            }
             String str = item.id + item.avatar + (item.members.length > 0 ? String.join(",", item.members) + item.total + NativeChatList.this.bg : "");
             if (TextUtils.equals(this.boundAvatar, str)) {
                 return;
@@ -1993,6 +2009,31 @@ public final class NativeChatList extends FrameLayout {
             canvas.clipPath(path);
             int iMin = Math.min(bitmap.getWidth(), bitmap.getHeight());
             canvas.drawBitmap(bitmap, new Rect((bitmap.getWidth() - iMin) / 2, (bitmap.getHeight() - iMin) / 2, (bitmap.getWidth() + iMin) / 2, (bitmap.getHeight() + iMin) / 2), new Rect(0, 0, i, i), new Paint(2));
+            return bitmapCreateBitmap;
+        }
+
+        static Bitmap strangerBox(Context context, int size) {
+            String str = "sb:" + size;
+            Bitmap bitmap = MEM.get(str);
+            if (bitmap != null) {
+                return bitmap;
+            }
+            Bitmap bitmapCreateBitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(bitmapCreateBitmap);
+            Paint paint = new Paint(1);
+            paint.setColor(0xFF0068FF);
+            float f = size / 2.0f;
+            canvas.drawCircle(f, f, f, paint);
+            paint.setColor(-1);
+            paint.setTextAlign(Paint.Align.CENTER);
+            paint.setTypeface(ZaloIcons.font(context));
+            paint.setTextSize(size * 0.52f);
+            String glyph = ZaloIcons.glyph(context, "stranger");
+            if (glyph == null || glyph.isEmpty()) {
+                glyph = "\ued81";
+            }
+            canvas.drawText(glyph, f, f - ((paint.descent() + paint.ascent()) / 2.0f), paint);
+            MEM.put(str, bitmapCreateBitmap);
             return bitmapCreateBitmap;
         }
 
